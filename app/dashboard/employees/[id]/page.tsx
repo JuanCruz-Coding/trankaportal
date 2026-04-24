@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 import { EmployeeActiveToggle } from "../components/employee-active-toggle";
+import { DocumentsSection } from "../components/documents-section";
 
 export default async function EmployeeDetailPage({
   params,
@@ -35,6 +36,17 @@ export default async function EmployeeDetailPage({
         where: { isActive: true },
         orderBy: [{ firstName: "asc" }],
         select: { id: true, firstName: true, lastName: true, email: true },
+      },
+      documents: {
+        orderBy: { uploadedAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          mimeType: true,
+          sizeBytes: true,
+          uploadedAt: true,
+        },
       },
     },
   });
@@ -142,11 +154,11 @@ export default async function EmployeeDetailPage({
             </DataCard>
           ) : null}
 
-          <DataCard title="Documentos" wide>
-            <p className="text-sm text-muted-foreground">
-              Los documentos adjuntos se habilitan en el próximo paso (3.6).
-            </p>
-          </DataCard>
+          <DocumentsSection
+            employeeId={employee.id}
+            documents={employee.documents}
+            canManage={canEdit}
+          />
         </div>
       </div>
     </FeatureGate>
