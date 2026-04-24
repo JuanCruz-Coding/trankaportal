@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import {
   employeeFormSchema,
@@ -24,7 +31,12 @@ import {
   formToCreateInput,
   CONTRACT_TYPE_LABEL,
 } from "@/lib/validations/employee";
-import { createEmployee, updateEmployee } from "../actions";
+import {
+  createEmployee,
+  updateEmployee,
+  createDepartment,
+  createPosition,
+} from "../actions";
 
 type SelectOption = { id: string; label: string };
 
@@ -37,25 +49,29 @@ type Props = {
   managers: SelectOption[];
 };
 
-// shadcn Select no acepta value="" — usamos este sentinela.
 const UNASSIGNED = "__unassigned__";
 
 export function EmployeeForm({
   mode,
   employeeId,
   defaultValues,
-  departments,
-  positions,
+  departments: initialDepartments,
+  positions: initialPositions,
   managers,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Options en state para poder agregar nuevos inline sin refrescar toda la página.
+  const [departments, setDepartments] = useState(initialDepartments);
+  const [positions, setPositions] = useState(initialPositions);
+
   const {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<EmployeeFormInput>({
     resolver: zodResolver(employeeFormSchema),
@@ -130,19 +146,33 @@ export function EmployeeForm({
 
       <Section title="Datos laborales">
         <Field label="Departamento" error={errors.departmentId?.message}>
-          <SelectField
+          <CreatableSelectField
             control={control}
             name="departmentId"
             options={departments}
             placeholder="Sin asignar"
+            dialogTitle="Nuevo departamento"
+            dialogLabel="Nombre"
+            onCreate={async (name) => {
+              const d = await createDepartment(name);
+              setDepartments((prev) => [...prev, { id: d.id, label: d.name }]);
+              setValue("departmentId", d.id);
+            }}
           />
         </Field>
         <Field label="Puesto" error={errors.positionId?.message}>
-          <SelectField
+          <CreatableSelectField
             control={control}
             name="positionId"
             options={positions}
             placeholder="Sin asignar"
+            dialogTitle="Nuevo puesto"
+            dialogLabel="Título"
+            onCreate={async (title) => {
+              const p = await createPosition(title);
+              setPositions((prev) => [...prev, { id: p.id, label: p.title }]);
+              setValue("positionId", p.id);
+            }}
           />
         </Field>
         <Field label="Manager" error={errors.managerId?.message}>
@@ -272,5 +302,121 @@ function SelectField({
         </Select>
       )}
     />
+  );
+}
+
+/**
+ * Select + botón "+ Nuevo" al lado que abre un dialog para crear una opción
+ * nueva. La opción creada se agrega a la lista y se auto-selecciona.
+ */
+function CreatableSelectField({
+  control,
+  name,
+  options,
+  placeholder,
+  dialogTitle,
+  dialogLabel,
+  onCreate,
+}: {
+  control: ReturnType<typeof useForm<EmployeeFormInput>>["control"];
+  name: keyof EmployeeFormInput;
+  options: SelectOption[];
+  placeholder: string;
+  dialogTitle: string;
+  dialogLabel: string;
+  onCreate: (value: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setError(null);
+    setSaving(true);
+    try {
+      await onCreate(value);
+      setValue("");
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al crear.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <SelectField
+            control={control}
+            name={name}
+            options={options}
+            placeholder={placeholder}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label={dialogTitle}
+          onClick={() => setOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+          </DialogHeader>
+          {/*
+            Nested form: Dialog corre dentro del <form> del empleado.
+            Usamos onKeyDown para que Enter dispare el submit del dialog y no
+            propague al form padre (createEmployee).
+          */}
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1.5">{dialogLabel}</Label>
+              <Input
+                autoFocus
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                disabled={saving}
+              />
+            </div>
+            {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || value.trim().length === 0}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Crear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -72,3 +72,51 @@ export async function setEmployeeActive(id: string, isActive: boolean) {
   revalidatePath("/dashboard/employees");
   revalidatePath(`/dashboard/employees/${id}`);
 }
+
+// =========================================================================
+// Department + Position — creación inline desde el form de empleado
+// =========================================================================
+
+export async function createDepartment(name: string): Promise<{ id: string; name: string }> {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin", "hr"]);
+
+  const cleaned = name.trim();
+  if (cleaned.length === 0) throw new Error("El nombre no puede estar vacío.");
+  if (cleaned.length > 80) throw new Error("Máximo 80 caracteres.");
+
+  const existing = await prisma.department.findUnique({
+    where: { organizationId_name: { organizationId: ctx.organizationId, name: cleaned } },
+    select: { id: true, name: true },
+  });
+  if (existing) return existing;
+
+  const dep = await prisma.department.create({
+    data: { organizationId: ctx.organizationId, name: cleaned },
+    select: { id: true, name: true },
+  });
+  revalidatePath("/dashboard/employees");
+  return dep;
+}
+
+export async function createPosition(title: string): Promise<{ id: string; title: string }> {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin", "hr"]);
+
+  const cleaned = title.trim();
+  if (cleaned.length === 0) throw new Error("El nombre no puede estar vacío.");
+  if (cleaned.length > 80) throw new Error("Máximo 80 caracteres.");
+
+  const existing = await prisma.position.findUnique({
+    where: { organizationId_title: { organizationId: ctx.organizationId, title: cleaned } },
+    select: { id: true, title: true },
+  });
+  if (existing) return existing;
+
+  const pos = await prisma.position.create({
+    data: { organizationId: ctx.organizationId, title: cleaned },
+    select: { id: true, title: true },
+  });
+  revalidatePath("/dashboard/employees");
+  return pos;
+}
