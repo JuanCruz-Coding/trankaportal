@@ -111,9 +111,11 @@ enum ContractType {
 }
 
 model Employee {
-  id             String @id @default(cuid())
+  id             String  @id @default(cuid())
   organizationId String
-  clerkUserId    String @unique // nexo con Clerk (auth/rol vive allá)
+  // Nullable: HR puede crear Employee antes de que la persona acepte la invitación.
+  // El webhook organizationMembership.created linkea el clerkUserId por email.
+  clerkUserId    String? @unique
 
   // Datos personales
   firstName String

@@ -109,6 +109,11 @@ async function handleOrgDeleted(data: { id?: string }) {
 async function handleMembershipCreated(data: MembershipData) {
   const clerkUserId = data.public_user_data.user_id;
   const clerkOrgId = data.organization.id;
+  const email = data.public_user_data.identifier;
+
+  if (!email) {
+    throw new Error(`Membership sin email (user ${clerkUserId})`);
+  }
 
   const org = await prisma.organization.findUnique({
     where: { clerkOrgId },
@@ -120,42 +125,61 @@ async function handleMembershipCreated(data: MembershipData) {
     throw new Error(`Organization ${clerkOrgId} todavía no existe en DB`);
   }
 
-  // Si ya existe un Employee con ese clerkUserId (limitación MVP: un user = una org),
-  // ignorar. En el futuro multi-org, esto debería crear una fila nueva.
-  const existing = await prisma.employee.findUnique({
-    where: { clerkUserId },
-    select: { id: true, organizationId: true },
+  // Caso 1 — Employee ya existe en esta org con este clerkUserId (rehire / reintento).
+  const byClerkId = await prisma.employee.findFirst({
+    where: { organizationId: org.id, clerkUserId },
+    select: { id: true },
   });
-  if (existing) {
-    if (existing.organizationId !== org.id) {
-      console.warn(
-        `[webhook] User ${clerkUserId} ya existe en otra org. Ignorando membership en ${clerkOrgId}.`
-      );
-    } else {
-      // Reactivar si estaba desactivado (rehire).
-      await prisma.employee.update({
-        where: { id: existing.id },
-        data: { isActive: true },
-      });
-    }
+  if (byClerkId) {
+    await prisma.employee.update({
+      where: { id: byClerkId.id },
+      data: { isActive: true },
+    });
     return;
   }
 
-  const primaryEmail =
-    data.public_user_data.identifier ??
-    `${clerkUserId}@unknown.local`; // fallback por si el shape falla
+  // Caso 2 — HR precargó el Employee sin clerkUserId. Linkeamos por email.
+  const preloaded = await prisma.employee.findFirst({
+    where: { organizationId: org.id, email, clerkUserId: { equals: null } },
+    select: { id: true },
+  });
+  if (preloaded) {
+    await prisma.employee.update({
+      where: { id: preloaded.id },
+      data: {
+        clerkUserId,
+        firstName: data.public_user_data.first_name ?? undefined,
+        lastName: data.public_user_data.last_name ?? undefined,
+        isActive: true,
+      },
+    });
+    console.log(`[webhook] Employee linkeado por email: ${email} → ${org.id}`);
+    return;
+  }
 
+  // Caso 3 — Usuario preexistente en otra org (limitación MVP multi-org).
+  const anyWithClerkId = await prisma.employee.findUnique({
+    where: { clerkUserId },
+    select: { organizationId: true },
+  });
+  if (anyWithClerkId) {
+    console.warn(
+      `[webhook] User ${clerkUserId} ya existe en otra org. Ignorando membership en ${clerkOrgId}.`
+    );
+    return;
+  }
+
+  // Caso 4 — Alta limpia (self-onboarding: registro + creación de org).
   await prisma.employee.create({
     data: {
       organizationId: org.id,
       clerkUserId,
       firstName: data.public_user_data.first_name ?? "",
       lastName: data.public_user_data.last_name ?? "",
-      email: primaryEmail,
+      email,
     },
   });
-
-  console.log(`[webhook] Employee created: ${primaryEmail} → ${org.id}`);
+  console.log(`[webhook] Employee creado: ${email} → ${org.id}`);
 }
 
 async function handleMembershipDeleted(data: MembershipData) {
