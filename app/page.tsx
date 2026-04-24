@@ -1,8 +1,22 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { Show, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { buttonVariants } from "@/components/ui/button";
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ need?: string; error?: string }>;
+}) {
+  const { userId, orgId } = await auth();
+
+  // Logueado + org elegida → dashboard
+  if (userId && orgId) redirect("/dashboard");
+
+  const params = await searchParams;
+  const needsOrg = params.need === "org";
+
   return (
     <main className="container mx-auto max-w-5xl px-4 py-10">
       <header className="mb-12 flex items-center justify-between">
@@ -11,8 +25,8 @@ export default function Home() {
           <Show when="signed-in">
             <OrganizationSwitcher
               hidePersonal
-              afterCreateOrganizationUrl="/"
-              afterSelectOrganizationUrl="/"
+              afterCreateOrganizationUrl="/dashboard"
+              afterSelectOrganizationUrl="/dashboard"
             />
             <UserButton />
           </Show>
@@ -46,9 +60,13 @@ export default function Home() {
 
       <Show when="signed-in">
         <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Estás logueado. Usá el selector de arriba para crear o elegir una
-            organización — el dashboard lo habilitamos en Fase 2.
+          <h3 className="font-semibold">
+            {needsOrg ? "Elegí o creá una organización" : "Bienvenido"}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Usá el selector de arriba para crear una nueva empresa o elegir una
+            de las que ya sos parte. Una vez seleccionada, te llevamos al
+            dashboard.
           </p>
         </div>
       </Show>
