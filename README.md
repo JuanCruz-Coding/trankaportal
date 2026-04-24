@@ -82,6 +82,7 @@ cp .env.example .env.local
 ```env
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<32-byte hex, generar con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`>
 
 # Supabase Postgres
 DATABASE_URL="postgresql://..."
