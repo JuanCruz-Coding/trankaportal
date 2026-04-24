@@ -1,44 +1,264 @@
-import { getOrgContext } from "@/lib/tenant";
+import Link from "next/link";
+import {
+  Users,
+  Clock,
+  CalendarOff,
+  Inbox,
+  ChevronRight,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
+import { getCurrentEmployeeId, getOrgContext } from "@/lib/tenant";
+import { getMyCurrentBalance } from "./time-off/actions";
+import { STATUS_LABEL, STATUS_VARIANT } from "@/lib/validations/time-off";
 
 export default async function DashboardHome() {
   const ctx = await getOrgContext();
+  const myId = await getCurrentEmployeeId();
 
-  // Una query rápida para mostrar algo real: nombre de la org + plan.
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
     select: {
       name: true,
+      timezone: true,
       subscription: { select: { plan: { select: { key: true, name: true } } } },
     },
   });
 
+  const canManage = ctx.role === "admin" || ctx.role === "hr" || ctx.role === "manager";
+
+  // Datos paralelos para los widgets.
+  const [activeEmployees, pendingForReview, myUpcoming, todayRecord, balance] =
+    await Promise.all([
+      // Empleados activos
+      prisma.employee.count({
+        where: { organizationId: ctx.organizationId, isActive: true },
+      }),
+      // Solicitudes pendientes para revisar (filtradas por scope si es manager)
+      canManage
+        ? prisma.timeOffRequest.count({
+            where: {
+              organizationId: ctx.organizationId,
+              status: "PENDING",
+              ...(ctx.role === "manager" && myId
+                ? { employee: { managerId: myId } }
+                : {}),
+            },
+          })
+        : Promise.resolve(0),
+      // Mis próximas ausencias aprobadas
+      myId
+        ? prisma.timeOffRequest.findMany({
+            where: {
+              employeeId: myId,
+              status: { in: ["PENDING", "APPROVED"] },
+              endDate: { gte: new Date() },
+            },
+            orderBy: { startDate: "asc" },
+            take: 3,
+            include: { type: { select: { name: true } } },
+          })
+        : Promise.resolve([] as never[]),
+      // Mi attendance de hoy
+      myId
+        ? (async () => {
+            const tz = org?.timezone ?? "America/Argentina/Buenos_Aires";
+            const parts = new Intl.DateTimeFormat("en-CA", {
+              timeZone: tz,
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).formatToParts(new Date());
+            const y = parts.find((p) => p.type === "year")!.value;
+            const m = parts.find((p) => p.type === "month")!.value;
+            const d = parts.find((p) => p.type === "day")!.value;
+            return prisma.attendanceRecord.findUnique({
+              where: {
+                employeeId_date: {
+                  employeeId: myId,
+                  date: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
+                },
+              },
+            });
+          })()
+        : Promise.resolve(null),
+      // Mi saldo de vacaciones
+      getMyCurrentBalance(),
+    ]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Hola{ctx.role === "employee" ? "" : ""} 👋
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Bienvenido a {org?.name ?? "tu organización"}.
+          {org?.name ?? "Tu organización"} · Plan{" "}
+          <span className="font-medium">{org?.subscription?.plan.name}</span> ·
+          Rol{" "}
+          <span className="font-medium">{ctx.role.toUpperCase()}</span>
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card title="Plan actual" value={org?.subscription?.plan.name ?? "—"} />
-        <Card title="Tu rol" value={ctx.role.toUpperCase()} />
-        <Card title="Empleados" value="—" hint="Próximamente en Fase 3" />
-      </div>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          icon={Users}
+          label="Empleados activos"
+          value={activeEmployees.toString()}
+          href="/dashboard/employees"
+        />
+        <StatCard
+          icon={CalendarOff}
+          label="Mi saldo de vacaciones"
+          value={balance ? `${balance.remainingDays} días` : "—"}
+          hint={balance ? `Año ${balance.year}` : undefined}
+          href="/dashboard/time-off"
+        />
+        <StatCard
+          icon={Clock}
+          label="Asistencia hoy"
+          value={
+            !todayRecord
+              ? "Sin iniciar"
+              : todayRecord.checkOut
+              ? "Cerrada"
+              : "En curso"
+          }
+          hint={
+            todayRecord?.checkIn
+              ? `Entrada ${formatTime(todayRecord.checkIn, org?.timezone)}`
+              : undefined
+          }
+          href="/dashboard/attendance"
+        />
+        {canManage ? (
+          <StatCard
+            icon={Inbox}
+            label="Solicitudes por aprobar"
+            value={pendingForReview.toString()}
+            hint={ctx.role === "manager" ? "De tu equipo" : "Toda la org"}
+            href="/dashboard/time-off"
+            highlight={pendingForReview > 0}
+          />
+        ) : null}
+      </section>
+
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold">Mis próximas ausencias</h2>
+            <Link
+              href="/dashboard/time-off"
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              Ver todo
+            </Link>
+          </div>
+          {myUpcoming.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No tenés ausencias programadas.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {myUpcoming.map((r) => (
+                <li key={r.id} className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="text-sm font-medium">{r.type.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(r.startDate)} → {formatDate(r.endDate)} (
+                      {r.totalDays} días)
+                    </p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[r.status]}>
+                    {STATUS_LABEL[r.status]}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
+          <h2 className="mb-4 text-base font-semibold">Atajos</h2>
+          <div className="space-y-2">
+            <Shortcut href="/dashboard/time-off" label="Solicitar ausencia" />
+            <Shortcut href="/dashboard/attendance" label="Marcar asistencia" />
+            <Shortcut href="/dashboard/profile" label="Editar mi perfil" />
+            {canManage ? (
+              <Shortcut
+                href="/dashboard/employees/chart"
+                label="Ver organigrama"
+              />
+            ) : null}
+            {ctx.role === "admin" ? (
+              <Shortcut href="/dashboard/settings" label="Configuración" />
+            ) : null}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-function Card({ title, value, hint }: { title: string; value: string; hint?: string }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  href,
+  highlight,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  hint?: string;
+  href: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
+    <Link
+      href={href}
+      className={`group rounded-lg border bg-card p-5 text-card-foreground shadow-sm transition-colors hover:bg-accent ${
+        highlight ? "ring-2 ring-primary/40" : ""
+      }`}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <Icon className="h-5 w-5 text-muted-foreground" />
+        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      </div>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
+        {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
+    </Link>
   );
+}
+
+function Shortcut({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent"
+    >
+      <span>{label}</span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+    </Link>
+  );
+}
+
+function formatDate(d: Date): string {
+  return new Date(d).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+}
+
+function formatTime(d: Date, tz: string | undefined): string {
+  return new Date(d).toLocaleTimeString("es-AR", {
+    timeZone: tz ?? "America/Argentina/Buenos_Aires",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
