@@ -12,12 +12,16 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { NavList } from "./nav";
+import type { FeatureKey } from "@/lib/features";
+import type { OrgRole } from "@/lib/tenant";
 
-/**
- * Botón hamburguesa + drawer lateral para mobile.
- * Se cierra automáticamente al clickear un item (onItemClick).
- */
-export function MobileNav() {
+export function MobileNav({
+  role,
+  features,
+}: {
+  role: OrgRole;
+  features: FeatureKey[];
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -31,7 +35,12 @@ export function MobileNav() {
           <SheetTitle>TrankaPortal</SheetTitle>
         </SheetHeader>
         <div className="p-3">
-          <NavList pathname={pathname} onItemClick={() => setOpen(false)} />
+          <NavList
+            pathname={pathname}
+            role={role}
+            features={features}
+            onItemClick={() => setOpen(false)}
+          />
         </div>
       </SheetContent>
     </Sheet>

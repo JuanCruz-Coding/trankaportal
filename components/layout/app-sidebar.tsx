@@ -2,12 +2,16 @@
 
 import { usePathname } from "next/navigation";
 import { NavList } from "./nav";
+import type { FeatureKey } from "@/lib/features";
+import type { OrgRole } from "@/lib/tenant";
 
-/**
- * Sidebar de escritorio. Oculto en mobile (md:flex).
- * 'use client' porque usa usePathname() para marcar el item activo.
- */
-export function AppSidebar() {
+export function AppSidebar({
+  role,
+  features,
+}: {
+  role: OrgRole;
+  features: FeatureKey[];
+}) {
   const pathname = usePathname();
 
   return (
@@ -16,7 +20,7 @@ export function AppSidebar() {
         <span className="font-semibold tracking-tight">TrankaPortal</span>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        <NavList pathname={pathname} />
+        <NavList pathname={pathname} role={role} features={features} />
       </div>
     </aside>
   );

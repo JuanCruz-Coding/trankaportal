@@ -7,15 +7,16 @@ import {
   OrgNotSyncedError,
   UnauthenticatedError,
 } from "@/lib/tenant";
+import { getOrgFeatures } from "@/lib/features";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Verifica sesión + org seleccionada + org en DB. Si falta algo, redirigimos.
+  let ctx;
   try {
-    await getOrgContext();
+    ctx = await getOrgContext();
   } catch (err) {
     if (err instanceof UnauthenticatedError) redirect("/sign-in");
     if (err instanceof NoOrgSelectedError) redirect("/?need=org");
@@ -23,11 +24,16 @@ export default async function DashboardLayout({
     throw err;
   }
 
+  // Cargamos las features una vez acá y las pasamos al header + sidebar
+  // para evitar que cada uno haga su propia query.
+  const featuresSet = await getOrgFeatures(ctx.organizationId);
+  const features = [...featuresSet];
+
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar />
+      <AppSidebar role={ctx.role} features={features} />
       <div className="flex flex-1 flex-col">
-        <AppHeader />
+        <AppHeader role={ctx.role} features={features} />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
