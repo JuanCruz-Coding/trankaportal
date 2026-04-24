@@ -5,7 +5,12 @@ import { FeatureGate } from "@/components/feature-gate";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
-import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
+import {
+  ForbiddenError,
+  getCurrentEmployeeId,
+  getOrgContext,
+  requireRole,
+} from "@/lib/tenant";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 import { EmployeeActiveToggle } from "../components/employee-active-toggle";
 import { DocumentsSection } from "../components/documents-section";
@@ -52,6 +57,13 @@ export default async function EmployeeDetailPage({
   });
 
   if (!employee) notFound();
+
+  // Manager solo puede ver su propia ficha + subordinados directos.
+  if (ctx.role === "manager") {
+    const myEmpId = await getCurrentEmployeeId();
+    const canSee = myEmpId === employee.id || employee.managerId === myEmpId;
+    if (!canSee) redirect("/dashboard/employees");
+  }
 
   // Salary hidden para role employee que no sea su propia ficha.
   const canSeeSalary =

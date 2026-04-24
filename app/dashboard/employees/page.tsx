@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Network, Plus, Search } from "lucide-react";
 import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
-import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
+import {
+  ForbiddenError,
+  getCurrentEmployeeId,
+  getOrgContext,
+  requireRole,
+  type OrgRole,
+} from "@/lib/tenant";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 
 type PageProps = {
@@ -42,24 +48,51 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   const q = (params.q ?? "").trim();
   const status = params.status ?? "active";
 
+  // Manager solo ve a sus subordinados directos + su propia ficha.
+  let managerScopeIds: string[] | null = null;
+  if (ctx.role === "manager") {
+    const myEmpId = await getCurrentEmployeeId();
+    if (!myEmpId) {
+      // Edge case: manager sin Employee row sincronizado. No mostrar nada.
+      managerScopeIds = [];
+    } else {
+      const subs = await prisma.employee.findMany({
+        where: { organizationId: ctx.organizationId, managerId: myEmpId },
+        select: { id: true },
+      });
+      managerScopeIds = [myEmpId, ...subs.map((s) => s.id)];
+    }
+  }
+
   return (
     <FeatureGate feature="employees">
-      <EmployeesContent orgId={ctx.organizationId} q={q} status={status} />
+      <EmployeesContent
+        orgId={ctx.organizationId}
+        role={ctx.role}
+        q={q}
+        status={status}
+        managerScopeIds={managerScopeIds}
+      />
     </FeatureGate>
   );
 }
 
 async function EmployeesContent({
   orgId,
+  role,
   q,
   status,
+  managerScopeIds,
 }: {
   orgId: string;
+  role: OrgRole;
   q: string;
   status: "active" | "inactive" | "all";
+  managerScopeIds: string[] | null;
 }) {
   const where = {
     organizationId: orgId,
+    ...(managerScopeIds !== null ? { id: { in: managerScopeIds } } : {}),
     ...(status === "active" ? { isActive: true } : {}),
     ...(status === "inactive" ? { isActive: false } : {}),
     ...(q
@@ -73,6 +106,12 @@ async function EmployeesContent({
       : {}),
   };
 
+  const activeWhere = {
+    organizationId: orgId,
+    isActive: true,
+    ...(managerScopeIds !== null ? { id: { in: managerScopeIds } } : {}),
+  };
+
   const [employees, totalActive] = await Promise.all([
     prisma.employee.findMany({
       where,
@@ -82,8 +121,11 @@ async function EmployeesContent({
         position: { select: { title: true } },
       },
     }),
-    prisma.employee.count({ where: { organizationId: orgId, isActive: true } }),
+    prisma.employee.count({ where: activeWhere }),
   ]);
+
+  const scopeLabel =
+    role === "manager" ? "en tu equipo" : "en la organización";
 
   return (
     <div className="space-y-6">
@@ -91,16 +133,27 @@ async function EmployeesContent({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Empleados</h1>
           <p className="text-sm text-muted-foreground">
-            {totalActive} activo{totalActive === 1 ? "" : "s"} en la organización.
+            {totalActive} activo{totalActive === 1 ? "" : "s"} {scopeLabel}.
           </p>
         </div>
-        <Link
-          href="/dashboard/employees/new"
-          className={buttonVariants({ size: "sm" })}
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo empleado
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/employees/chart"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Network className="h-4 w-4" />
+            Organigrama
+          </Link>
+          {role !== "manager" ? (
+            <Link
+              href="/dashboard/employees/new"
+              className={buttonVariants({ size: "sm" })}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo empleado
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       <form

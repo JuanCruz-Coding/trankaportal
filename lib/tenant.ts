@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
@@ -53,6 +54,29 @@ export async function tryGetOrgContext(): Promise<OrgContext | null> {
     return null;
   }
 }
+
+/**
+ * Devuelve el Employee.id del usuario logueado (resolviendo por clerkUserId).
+ * Útil para queries "me muestra solo lo mío" — por ejemplo, un Manager
+ * viendo solo sus subordinados.
+ *
+ * Devuelve null si no hay fila Employee para ese clerkUserId (edge case:
+ * webhook no corrió todavía, o usuario fue desactivado y su fila eliminada).
+ *
+ * Cacheado por request (react.cache) — múltiples llamadas en un mismo render
+ * comparten la query.
+ */
+export const getCurrentEmployeeId = cache(async (): Promise<string | null> => {
+  const ctx = await getOrgContext();
+  const emp = await prisma.employee.findFirst({
+    where: {
+      organizationId: ctx.organizationId,
+      clerkUserId: ctx.clerkUserId,
+    },
+    select: { id: true },
+  });
+  return emp?.id ?? null;
+});
 
 /**
  * Exige que el rol del usuario esté en la lista permitida.
