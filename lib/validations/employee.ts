@@ -122,3 +122,40 @@ export const CONTRACT_TYPE_LABEL: Record<ContractType, string> = {
   CONTRACTOR: "Contratado",
   INTERN: "Pasantía",
 };
+
+// =========================================================================
+// Self-service profile — el empleado edita solo su info personal.
+// firstName, lastName, phone, birthDate, address. NO email (vive en Clerk),
+// NO DNI (lo valida HR), NO datos laborales.
+// =========================================================================
+
+export const profileSelfFormSchema = z.object({
+  firstName: z.string().trim().min(1, "Requerido").max(100),
+  lastName: z.string().trim().min(1, "Requerido").max(100),
+  phone: z.string().optional(),
+  birthDate: z.string().optional(),
+  address: z.string().optional(),
+});
+
+export type ProfileSelfFormInput = z.infer<typeof profileSelfFormSchema>;
+
+export const profileSelfUpdateSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  phone: optionalString,
+  birthDate: optionalDate,
+  address: optionalString,
+});
+
+export type ProfileSelfUpdateInput = z.infer<typeof profileSelfUpdateSchema>;
+
+export function profileFormToUpdate(f: ProfileSelfFormInput): ProfileSelfUpdateInput {
+  return {
+    firstName: f.firstName,
+    lastName: f.lastName,
+    phone: f.phone === "" || f.phone === undefined ? null : f.phone,
+    birthDate:
+      f.birthDate === "" || f.birthDate === undefined ? null : new Date(f.birthDate),
+    address: f.address === "" || f.address === undefined ? null : f.address,
+  };
+}
