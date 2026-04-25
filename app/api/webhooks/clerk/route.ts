@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
 import { prisma } from "@/lib/prisma";
+import { createNotifications } from "@/lib/notifications";
 
 // Webhook de Clerk. URL pública: /api/webhooks/clerk
 // Configurar en Clerk Dashboard → Webhooks → Endpoints con signing secret
@@ -170,7 +171,7 @@ async function handleMembershipCreated(data: MembershipData) {
   }
 
   // Caso 4 — Alta limpia (self-onboarding: registro + creación de org).
-  await prisma.employee.create({
+  const created = await prisma.employee.create({
     data: {
       organizationId: org.id,
       clerkUserId,
@@ -178,7 +179,23 @@ async function handleMembershipCreated(data: MembershipData) {
       lastName: data.public_user_data.last_name ?? "",
       email,
     },
+    select: { id: true },
   });
+
+  // Welcome notification
+  const orgInfo = await prisma.organization.findUnique({
+    where: { id: org.id },
+    select: { name: true },
+  });
+  await createNotifications({
+    organizationId: org.id,
+    recipientEmployeeIds: [created.id],
+    type: "WELCOME",
+    title: `¡Bienvenido a ${orgInfo?.name ?? "TrankaPortal"}!`,
+    body: "Completá tu perfil para empezar.",
+    link: "/dashboard/profile",
+  });
+
   console.log(`[webhook] Employee creado: ${email} → ${org.id}`);
 }
 

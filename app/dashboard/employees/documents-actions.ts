@@ -5,6 +5,7 @@ import { DocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
 import { DOCUMENTS_BUCKET, supabaseAdmin } from "@/lib/supabase";
+import { createNotifications } from "@/lib/notifications";
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_MIME = [
@@ -71,8 +72,9 @@ export async function uploadEmployeeDocument(formData: FormData) {
   }
 
   // Persistimos la fila después del upload. Si falla, limpiamos el blob.
+  let docId: string;
   try {
-    await prisma.document.create({
+    const created = await prisma.document.create({
       data: {
         organizationId: ctx.organizationId,
         employeeId,
@@ -83,10 +85,30 @@ export async function uploadEmployeeDocument(formData: FormData) {
         sizeBytes: file.size,
         uploadedByClerkUserId: ctx.clerkUserId,
       },
+      select: { id: true },
     });
+    docId = created.id;
   } catch (err) {
     await sb.storage.from(DOCUMENTS_BUCKET).remove([storagePath]);
     throw err;
+  }
+
+  // Notificar al empleado dueño del doc — pero solo si no es uno mismo
+  // (HR subiendo a su propia ficha no necesita notificarse a sí mismo).
+  const myEmpId = await prisma.employee.findUnique({
+    where: { clerkUserId: ctx.clerkUserId },
+    select: { id: true },
+  });
+  if (myEmpId?.id !== employeeId) {
+    await createNotifications({
+      organizationId: ctx.organizationId,
+      recipientEmployeeIds: [employeeId],
+      type: "DOCUMENT_UPLOADED",
+      title: "Nuevo documento subido a tu ficha",
+      body: `${name.trim()} (${type})`,
+      link: "/dashboard/profile",
+      relatedDocumentId: docId,
+    });
   }
 
   revalidatePath(`/dashboard/employees/${employeeId}`);

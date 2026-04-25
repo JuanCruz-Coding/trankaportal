@@ -34,6 +34,7 @@ model Organization {
   timeOffRequests   TimeOffRequest[]
   timeOffBalances   TimeOffBalance[]
   attendanceRecords AttendanceRecord[]
+  notifications     Notification[]
 }
 
 model Plan {
@@ -149,6 +150,7 @@ model Employee {
   reviewedRequests  TimeOffRequest[]   @relation("TimeOffReviewer")
   timeOffBalances   TimeOffBalance[]
   attendanceRecords AttendanceRecord[]
+  notifications     Notification[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, dni])
@@ -325,4 +327,42 @@ model AttendanceRecord {
   @@unique([employeeId, date])
   @@index([organizationId])
   @@index([organizationId, date])
+}
+
+// =========================================================================
+// NOTIFICATIONS (centro de actividad in-app)
+// =========================================================================
+
+enum NotificationType {
+  TIME_OFF_REQUESTED
+  TIME_OFF_APPROVED
+  TIME_OFF_REJECTED
+  TIME_OFF_CANCELLED
+  DOCUMENT_UPLOADED
+  WELCOME
+}
+
+model Notification {
+  id                  String           @id @default(cuid())
+  organizationId      String
+  recipientEmployeeId String
+
+  type  NotificationType
+  title String
+  body  String?
+  link  String? // destino al clickear (ej. "/dashboard/time-off")
+
+  // Referencias para deduplicar / enlazar al origen
+  relatedTimeOffRequestId String?
+  relatedDocumentId       String?
+
+  readAt    DateTime? // null = no leída
+  createdAt DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipient    Employee     @relation(fields: [recipientEmployeeId], references: [id], onDelete: Cascade)
+
+  @@index([recipientEmployeeId, readAt])
+  @@index([recipientEmployeeId, createdAt(sort: Desc)])
+  @@index([organizationId])
 }

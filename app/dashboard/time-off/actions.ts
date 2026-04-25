@@ -13,6 +13,10 @@ import {
   type TimeOffRequestCreateInput,
 } from "@/lib/validations/time-off";
 import { sendEmailSafe } from "@/lib/email";
+import {
+  createNotifications,
+  resolveEscalationRecipients,
+} from "@/lib/notifications";
 
 // =========================================================================
 // Balance helper
@@ -97,19 +101,35 @@ export async function createTimeOffRequest(input: TimeOffRequestCreateInput) {
     },
   });
 
-  // Notificar al manager (o a HR si no tiene manager). Fire-and-forget.
-  const notifyEmails: string[] = [];
+  // Resolver destinatarios: manager directo, o si no tiene → top-level (CEO).
+  let recipientEmployeeIds: string[] = [];
   if (req.employee.managerId) {
-    const manager = await prisma.employee.findUnique({
-      where: { id: req.employee.managerId },
-      select: { email: true },
-    });
-    if (manager?.email) notifyEmails.push(manager.email);
+    recipientEmployeeIds = [req.employee.managerId];
+  } else {
+    recipientEmployeeIds = await resolveEscalationRecipients(ctx.organizationId);
   }
 
-  if (notifyEmails.length > 0) {
+  // Notif in-app
+  await createNotifications({
+    organizationId: ctx.organizationId,
+    recipientEmployeeIds,
+    type: "TIME_OFF_REQUESTED",
+    title: `Nueva solicitud de ${req.employee.firstName} ${req.employee.lastName}`,
+    body: `${req.type.name} · ${req.totalDays} día${req.totalDays === 1 ? "" : "s"} desde ${req.startDate.toLocaleDateString("es-AR")}`,
+    link: "/dashboard/time-off",
+    relatedTimeOffRequestId: req.id,
+  });
+
+  // Email (fire-and-forget) — solo si tenemos email del recipient.
+  const recipients = await prisma.employee.findMany({
+    where: { id: { in: recipientEmployeeIds } },
+    select: { email: true },
+  });
+  const emails = recipients.map((r) => r.email).filter(Boolean);
+
+  if (emails.length > 0) {
     await sendEmailSafe({
-      to: notifyEmails,
+      to: emails,
       subject: `Nueva solicitud de ausencia — ${req.employee.firstName} ${req.employee.lastName}`,
       html: `
         <p><strong>${req.employee.firstName} ${req.employee.lastName}</strong> solicitó una ausencia:</p>
@@ -195,6 +215,16 @@ export async function approveTimeOffRequest(id: string, note?: string | null) {
     });
   });
 
+  await createNotifications({
+    organizationId: ctx.organizationId,
+    recipientEmployeeIds: [req.employeeId],
+    type: "TIME_OFF_APPROVED",
+    title: "Tu solicitud fue aprobada",
+    body: `${req.type.name} · ${req.totalDays} día${req.totalDays === 1 ? "" : "s"} desde ${req.startDate.toLocaleDateString("es-AR")}`,
+    link: "/dashboard/time-off",
+    relatedTimeOffRequestId: req.id,
+  });
+
   await sendEmailSafe({
     to: req.employee.email,
     subject: `Tu solicitud de ${req.type.name} fue aprobada`,
@@ -212,7 +242,7 @@ export async function approveTimeOffRequest(id: string, note?: string | null) {
 }
 
 export async function rejectTimeOffRequest(id: string, note: string) {
-  const { req } = await loadRequestForReview(id);
+  const { ctx, req } = await loadRequestForReview(id);
   const reviewerId = await getCurrentEmployeeId();
 
   if (req.status !== "PENDING") {
@@ -230,6 +260,16 @@ export async function rejectTimeOffRequest(id: string, note: string) {
       reviewedAt: new Date(),
       reviewNote: note.trim(),
     },
+  });
+
+  await createNotifications({
+    organizationId: ctx.organizationId,
+    recipientEmployeeIds: [req.employeeId],
+    type: "TIME_OFF_REJECTED",
+    title: "Tu solicitud fue rechazada",
+    body: `Motivo: ${note.trim()}`,
+    link: "/dashboard/time-off",
+    relatedTimeOffRequestId: req.id,
   });
 
   await sendEmailSafe({
@@ -286,6 +326,35 @@ export async function cancelTimeOffRequest(id: string) {
       });
     }
   });
+
+  // Si era aprobada, avisarle a quien la había aprobado (manager / top-level).
+  if (wasApproved) {
+    const fullReq = await prisma.timeOffRequest.findUnique({
+      where: { id },
+      include: {
+        employee: {
+          select: { firstName: true, lastName: true, managerId: true },
+        },
+      },
+    });
+    if (fullReq) {
+      let recipients: string[] = [];
+      if (fullReq.employee.managerId) {
+        recipients = [fullReq.employee.managerId];
+      } else {
+        recipients = await resolveEscalationRecipients(ctx.organizationId);
+      }
+      await createNotifications({
+        organizationId: ctx.organizationId,
+        recipientEmployeeIds: recipients,
+        type: "TIME_OFF_CANCELLED",
+        title: `Solicitud cancelada por ${fullReq.employee.firstName} ${fullReq.employee.lastName}`,
+        body: `Del ${fullReq.startDate.toLocaleDateString("es-AR")} al ${fullReq.endDate.toLocaleDateString("es-AR")}`,
+        link: "/dashboard/time-off",
+        relatedTimeOffRequestId: id,
+      });
+    }
+  }
 
   revalidatePath("/dashboard/time-off");
 }

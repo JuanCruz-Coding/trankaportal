@@ -1,15 +1,19 @@
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { MobileNav } from "./mobile-nav";
+import { NotificationBell } from "./notification-bell";
+import { getUnreadCount } from "@/app/dashboard/notifications/actions";
 import type { FeatureKey } from "@/lib/features";
 import type { OrgRole } from "@/lib/tenant";
 
-export function AppHeader({
+export async function AppHeader({
   role,
   features,
 }: {
   role: OrgRole;
   features: FeatureKey[];
 }) {
+  const initialUnread = await getUnreadCount();
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background px-3 md:px-6">
       <div className="flex shrink-0 items-center gap-2">
@@ -23,6 +27,7 @@ export function AppHeader({
             afterSelectOrganizationUrl="/dashboard"
           />
         </div>
+        <NotificationBell initialUnreadCount={initialUnread} />
         <UserButton />
       </div>
     </header>
