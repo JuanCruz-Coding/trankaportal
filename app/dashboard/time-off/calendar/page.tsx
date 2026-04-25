@@ -157,34 +157,56 @@ function MonthGrid({
 
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
-      <div className="grid grid-cols-7 border-b bg-muted/50 text-xs font-medium uppercase tracking-wide">
-        {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
-          <div key={d} className="p-2 text-center text-muted-foreground">
-            {d}
+      <div className="grid grid-cols-7 border-b bg-muted/50 text-[10px] font-medium uppercase tracking-wide md:text-xs">
+        {/* Mobile: 1 letra. Desktop: 3 letras */}
+        {[
+          { full: "Lun", short: "L" },
+          { full: "Mar", short: "M" },
+          { full: "Mié", short: "M" },
+          { full: "Jue", short: "J" },
+          { full: "Vie", short: "V" },
+          { full: "Sáb", short: "S" },
+          { full: "Dom", short: "D" },
+        ].map((d, i) => (
+          <div
+            key={i}
+            className="p-1.5 text-center text-muted-foreground md:p-2"
+          >
+            <span className="md:hidden">{d.short}</span>
+            <span className="hidden md:inline">{d.full}</span>
           </div>
         ))}
       </div>
       <div className="grid grid-cols-7">
         {cells.map((day, i) => {
           if (day === null) {
-            return <div key={i} className="min-h-24 border-b border-r bg-muted/20" />;
+            return (
+              <div
+                key={i}
+                className="min-h-16 border-b border-r bg-muted/20 md:min-h-24"
+              />
+            );
           }
           const dayDate = new Date(year, month, day);
           const events = requests.filter((r) => dateInRange(dayDate, r.start, r.end));
+          // Mobile muestra 1 evento, desktop hasta 3
+          const visibleCount = 3;
           return (
             <div
               key={i}
-              className={`min-h-24 border-b border-r p-1.5 ${
+              className={`min-h-16 border-b border-r p-1 md:min-h-24 md:p-1.5 ${
                 isTodayCell(day) ? "bg-accent/30" : ""
               }`}
             >
-              <div className="mb-1 text-xs font-medium">{day}</div>
+              <div className="mb-0.5 text-[10px] font-medium md:mb-1 md:text-xs">
+                {day}
+              </div>
               <div className="space-y-0.5">
-                {events.slice(0, 3).map((e, idx) => (
+                {events.slice(0, 1).map((e, idx) => (
                   <div
                     key={idx}
                     title={`${e.label} — ${e.type}`}
-                    className="truncate rounded px-1 py-0.5 text-[10px] font-medium"
+                    className="truncate rounded px-1 py-0.5 text-[9px] font-medium md:text-[10px]"
                     style={{
                       backgroundColor: (e.color ?? "#0d6efd") + "22",
                       color: e.color ?? "#0d6efd",
@@ -193,9 +215,30 @@ function MonthGrid({
                     {e.label}
                   </div>
                 ))}
-                {events.length > 3 ? (
-                  <div className="text-[10px] text-muted-foreground">
-                    +{events.length - 3} más
+                {/* Mobile: si hay 1+ resto, mostrar +N. Desktop: mostrar hasta 3 y +N para resto */}
+                <div className="hidden md:block">
+                  {events.slice(1, visibleCount).map((e, idx) => (
+                    <div
+                      key={idx}
+                      title={`${e.label} — ${e.type}`}
+                      className="truncate rounded px-1 py-0.5 text-[10px] font-medium"
+                      style={{
+                        backgroundColor: (e.color ?? "#0d6efd") + "22",
+                        color: e.color ?? "#0d6efd",
+                      }}
+                    >
+                      {e.label}
+                    </div>
+                  ))}
+                  {events.length > visibleCount ? (
+                    <div className="text-[10px] text-muted-foreground">
+                      +{events.length - visibleCount} más
+                    </div>
+                  ) : null}
+                </div>
+                {events.length > 1 ? (
+                  <div className="text-[9px] text-muted-foreground md:hidden">
+                    +{events.length - 1}
                   </div>
                 ) : null}
               </div>

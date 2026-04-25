@@ -104,11 +104,11 @@ export default async function AttendancePage() {
               {statusDetail(status, todayRecord, tz)}
             </p>
           </div>
-          <div className="flex items-center justify-center md:p-4">
+          <div className="md:p-4">
             {myId ? (
               <CheckButton status={status} />
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-center text-sm text-muted-foreground">
                 Sin ficha de empleado.
               </p>
             )}

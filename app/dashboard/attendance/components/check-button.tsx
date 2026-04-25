@@ -23,10 +23,15 @@ export function CheckButton({ status }: { status: Status }) {
     });
   };
 
+  // En mobile el botón es full-width y alto (touch-friendly).
+  // En desktop queda compacto al lado de la card de estado.
+  const baseClasses = "w-full h-14 text-base md:h-10 md:w-auto md:text-sm";
+
   if (status === "not-started") {
     return (
       <Button
         size="lg"
+        className={baseClasses}
         onClick={() => handle(checkIn)}
         disabled={isPending}
       >
@@ -44,6 +49,7 @@ export function CheckButton({ status }: { status: Status }) {
       <Button
         size="lg"
         variant="destructive"
+        className={baseClasses}
         onClick={() => handle(checkOut)}
         disabled={isPending}
       >
@@ -58,7 +64,7 @@ export function CheckButton({ status }: { status: Status }) {
   }
   // finished
   return (
-    <Button size="lg" variant="outline" disabled>
+    <Button size="lg" variant="outline" className={baseClasses} disabled>
       Jornada cerrada
     </Button>
   );
