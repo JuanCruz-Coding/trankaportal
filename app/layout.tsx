@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html lang="es" className={cn("font-sans", geist.variable)}>
+      <html lang="es" className={cn("scroll-smooth scroll-pt-20 font-sans", geist.variable)}>
         <body>{children}</body>
       </html>
     </ClerkProvider>

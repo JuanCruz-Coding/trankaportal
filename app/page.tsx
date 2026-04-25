@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Reveal } from "@/components/reveal";
 import { prisma } from "@/lib/prisma";
 
 // =========================================================================
@@ -174,34 +175,42 @@ function SiteHeader() {
 function Hero() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-20 text-center md:py-28">
-      <Badge variant="secondary" className="mb-6">
-        Para PyMEs argentinas
-      </Badge>
-      <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
-        RRHH ordenado para tu empresa.
-      </h1>
-      <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-        Empleados, ausencias y asistencia en un solo lugar. Sin Excel
-        descontrolado, sin papeles. Empezá gratis, escalá cuando lo necesites.
-      </p>
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Link
-          href="/sign-up"
-          className={buttonVariants({ size: "lg" })}
-        >
-          Empezar gratis
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-        <a
-          href="#pricing"
-          className={buttonVariants({ variant: "outline", size: "lg" })}
-        >
-          Ver planes
-        </a>
-      </div>
-      <p className="mt-4 text-xs text-muted-foreground">
-        Sin tarjeta de crédito. Cancelás cuando quieras.
-      </p>
+      <Reveal>
+        <Badge variant="secondary" className="mb-6">
+          Para PyMEs argentinas
+        </Badge>
+      </Reveal>
+      <Reveal delay={100}>
+        <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
+          RRHH ordenado para tu empresa.
+        </h1>
+      </Reveal>
+      <Reveal delay={200}>
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
+          Empleados, ausencias y asistencia en un solo lugar. Sin Excel
+          descontrolado, sin papeles. Empezá gratis, escalá cuando lo necesites.
+        </p>
+      </Reveal>
+      <Reveal delay={300}>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/sign-up"
+            className={buttonVariants({ size: "lg" })}
+          >
+            Empezar gratis
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <a
+            href="#pricing"
+            className={buttonVariants({ variant: "outline", size: "lg" })}
+          >
+            Ver planes
+          </a>
+        </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Sin tarjeta de crédito. Cancelás cuando quieras.
+        </p>
+      </Reveal>
     </section>
   );
 }
@@ -221,39 +230,43 @@ function FeaturesSection({
   return (
     <section id="features" className="border-t bg-muted/30">
       <div className="mx-auto max-w-6xl px-4 py-20">
-        <div className="mb-12 text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-            Todo lo que tu empresa necesita.
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            Cuatro módulos que cubren el día a día de RRHH en una PyME, sin
-            herramientas separadas.
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+              Todo lo que tu empresa necesita.
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
+              Cuatro módulos que cubren el día a día de RRHH en una PyME, sin
+              herramientas separadas.
+            </p>
+          </div>
+        </Reveal>
         <div className="grid gap-6 md:grid-cols-2">
-          {orderedKeys.map((key) => {
+          {orderedKeys.map((key, i) => {
             const detail = FEATURE_DETAIL[key];
             const name = FEATURE_NAME[key];
             if (!detail) return null;
             const Icon = detail.icon;
             return (
-              <div
-                key={key}
-                className="rounded-xl border bg-card p-6 text-card-foreground shadow-sm"
-              >
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="h-5 w-5 text-primary" />
+              <Reveal key={key} delay={i * 100}>
+                <div className="rounded-xl border bg-card p-6 text-card-foreground shadow-sm transition-shadow hover:shadow-md">
+                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold">{name}</h3>
+                  <ul className="mt-4 space-y-2">
+                    {detail.bullets.map((b) => (
+                      <li
+                        key={b}
+                        className="flex items-start gap-2 text-sm text-muted-foreground"
+                      >
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <h3 className="text-xl font-semibold">{name}</h3>
-                <ul className="mt-4 space-y-2">
-                  {detail.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              </Reveal>
             );
           })}
         </div>
@@ -280,88 +293,93 @@ function PricingSection({
   return (
     <section id="pricing" className="border-t">
       <div className="mx-auto max-w-6xl px-4 py-20">
-        <div className="mb-12 text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-            Planes para cualquier tamaño.
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            Empezás gratis con Starter. Cuando crezcas, subís a Pro o Business
-            desde la app.
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+              Planes para cualquier tamaño.
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
+              Empezás gratis con Starter. Cuando crezcas, subís a Pro o Business
+              desde la app.
+            </p>
+          </div>
+        </Reveal>
         <div className="grid gap-6 md:grid-cols-3">
-          {plans.map((p) => {
+          {plans.map((p, i) => {
             const price = PLAN_PRICES[p.key];
             const tagline = PLAN_TAGLINE[p.key];
             const isHighlighted = p.key === "pro";
 
             return (
-              <div
-                key={p.id}
-                className={`relative flex flex-col rounded-xl border p-6 shadow-sm ${
-                  isHighlighted
-                    ? "border-primary bg-card ring-2 ring-primary/30 md:scale-105"
-                    : "bg-card"
-                }`}
-              >
-                {isHighlighted ? (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    Más popular
-                  </Badge>
-                ) : null}
-                <div>
-                  <h3 className="text-xl font-semibold">{p.name}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {tagline ?? ""}
-                  </p>
-                </div>
-                <div className="mt-6">
-                  <span className="text-4xl font-bold">{price?.price ?? "—"}</span>
-                  {price?.period ? (
-                    <span className="ml-1 text-sm text-muted-foreground">
-                      {price.period}
-                    </span>
+              <Reveal key={p.id} delay={i * 120}>
+                <div
+                  className={`relative flex h-full flex-col rounded-xl border p-6 shadow-sm transition-all hover:shadow-lg ${
+                    isHighlighted
+                      ? "border-primary bg-card ring-2 ring-primary/30 md:scale-105"
+                      : "bg-card"
+                  }`}
+                >
+                  {isHighlighted ? (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      Más popular
+                    </Badge>
                   ) : null}
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {p.maxEmployees
-                    ? `Hasta ${p.maxEmployees} empleados`
-                    : "Empleados ilimitados"}
-                </p>
+                  <div>
+                    <h3 className="text-xl font-semibold">{p.name}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {tagline ?? ""}
+                    </p>
+                  </div>
+                  <div className="mt-6">
+                    <span className="text-4xl font-bold">{price?.price ?? "—"}</span>
+                    {price?.period ? (
+                      <span className="ml-1 text-sm text-muted-foreground">
+                        {price.period}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {p.maxEmployees
+                      ? `Hasta ${p.maxEmployees} empleados`
+                      : "Empleados ilimitados"}
+                  </p>
 
-                <ul className="mt-6 space-y-2 text-sm">
-                  {p.features.map((pf) => (
-                    <li
-                      key={pf.feature.key}
-                      className="flex items-center gap-2"
+                  <ul className="mt-6 space-y-2 text-sm">
+                    {p.features.map((pf) => (
+                      <li
+                        key={pf.feature.key}
+                        className="flex items-center gap-2"
+                      >
+                        <Check className="h-4 w-4 shrink-0 text-primary" />
+                        {FEATURE_NAME[pf.feature.key] ?? pf.feature.name}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-auto pt-8">
+                    <Link
+                      href="/sign-up"
+                      className={buttonVariants({
+                        size: "lg",
+                        variant: isHighlighted ? "default" : "outline",
+                        className: "w-full justify-center",
+                      })}
                     >
-                      <Check className="h-4 w-4 shrink-0 text-primary" />
-                      {FEATURE_NAME[pf.feature.key] ?? pf.feature.name}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-auto pt-8">
-                  <Link
-                    href="/sign-up"
-                    className={buttonVariants({
-                      size: "lg",
-                      variant: isHighlighted ? "default" : "outline",
-                      className: "w-full justify-center",
-                    })}
-                  >
-                    {price?.cta ?? "Empezar"}
-                  </Link>
+                      {price?.cta ?? "Empezar"}
+                    </Link>
+                  </div>
                 </div>
-              </div>
+              </Reveal>
             );
           })}
         </div>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          Todos los precios están en pesos argentinos, IVA incluido. Pagás
-          mensualmente y podés cambiar de plan o cancelar cuando quieras.
-        </p>
+        <Reveal>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            Todos los precios están en pesos argentinos, IVA incluido. Pagás
+            mensualmente y podés cambiar de plan o cancelar cuando quieras.
+          </p>
+        </Reveal>
       </div>
     </section>
   );
@@ -375,18 +393,20 @@ function FinalCta() {
   return (
     <section className="border-t bg-primary/5">
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
-        <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-          ¿Listo para ordenar tu RRHH?
-        </h2>
-        <p className="mt-3 text-muted-foreground">
-          Crea tu cuenta en menos de 2 minutos. Sin tarjeta, sin compromiso.
-        </p>
-        <div className="mt-8">
-          <Link href="/sign-up" className={buttonVariants({ size: "lg" })}>
-            Empezar gratis
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+        <Reveal>
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+            ¿Listo para ordenar tu RRHH?
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            Crea tu cuenta en menos de 2 minutos. Sin tarjeta, sin compromiso.
+          </p>
+          <div className="mt-8">
+            <Link href="/sign-up" className={buttonVariants({ size: "lg" })}>
+              Empezar gratis
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
