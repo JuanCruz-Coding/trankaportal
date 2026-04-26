@@ -2,7 +2,7 @@
 
 SaaS de gestión de Recursos Humanos para PyMEs. Multi-tenant, con módulos de empleados, ausencias, asistencia y portal del empleado.
 
-> **Live demo**: [trankaportal.vercel.app](https://trankaportal.vercel.app)
+> **Live**: [portal.trankasoft.com](https://portal.trankasoft.com)
 
 ## Features
 
