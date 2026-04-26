@@ -421,9 +421,11 @@ function SiteFooter() {
     <footer className="border-t">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground">
         <div>© {new Date().getFullYear()} TrankaPortal. Todos los derechos reservados.</div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <a href="#features" className="hover:text-foreground">Funciones</a>
           <a href="#pricing" className="hover:text-foreground">Precios</a>
+          <Link href="/legal/terminos" className="hover:text-foreground">Términos</Link>
+          <Link href="/legal/privacidad" className="hover:text-foreground">Privacidad</Link>
           <Link href="/sign-in" className="hover:text-foreground">Iniciar sesión</Link>
         </div>
       </div>
