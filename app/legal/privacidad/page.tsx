@@ -11,7 +11,7 @@ export default function PrivacidadPage() {
     <article className="space-y-2">
       <h1 className="text-3xl font-bold tracking-tight">Política de Privacidad</h1>
       <p className="text-sm text-muted-foreground">
-        Última actualización: <strong>[FECHA_PUBLICACION]</strong>
+        Última actualización: <strong>26 de abril de 2026</strong>
       </p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
@@ -27,8 +27,8 @@ export default function PrivacidadPage() {
 
         <Section title="1. Quiénes somos">
           <Para>
-            <strong>[TU_RAZON_SOCIAL]</strong>, CUIT <strong>[TU_CUIT]</strong>, con
-            domicilio en <strong>[TU_DIRECCION]</strong> (en adelante,
+            <strong>Juan Cruz Montagni (monotributista), comercialmente identificado como Trankasoft</strong>, CUIT <strong>20-37774857-4</strong>, con
+            domicilio en <strong>Saavedra 2152, Villa Gobernador Gálvez (CP 2124), Provincia de Santa Fe, Argentina</strong> (en adelante,
             "TrankaPortal" o "nosotros").
           </Para>
         </Section>
@@ -146,7 +146,7 @@ export default function PrivacidadPage() {
           </ul>
           <Para>
             Para ejercer cualquiera de estos derechos, escribinos a{" "}
-            <strong>[TU_EMAIL_CONTACTO]</strong>. Respondemos dentro de los 10
+            <strong>soporte@trankasoft.com</strong>. Respondemos dentro de los 10
             días corridos.
           </Para>
           <Para>
@@ -208,10 +208,10 @@ export default function PrivacidadPage() {
           </Para>
           <ul className="ml-6 list-disc space-y-1.5">
             <li>
-              <strong>Email</strong>: [TU_EMAIL_CONTACTO]
+              <strong>Email</strong>: soporte@trankasoft.com
             </li>
             <li>
-              <strong>Domicilio</strong>: [TU_DIRECCION]
+              <strong>Domicilio</strong>: Saavedra 2152, Villa Gobernador Gálvez (CP 2124), Provincia de Santa Fe, Argentina
             </li>
           </ul>
           <Para>Autoridad de control:</Para>

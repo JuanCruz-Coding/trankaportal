@@ -11,15 +11,15 @@ export default function TerminosPage() {
     <article className="space-y-2">
       <h1 className="text-3xl font-bold tracking-tight">Términos y Condiciones de Uso</h1>
       <p className="text-sm text-muted-foreground">
-        Última actualización: <strong>[FECHA_PUBLICACION]</strong>
+        Última actualización: <strong>26 de abril de 2026</strong>
       </p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
         <Para>
           Estos Términos y Condiciones (en adelante, "Términos") regulan el
           acceso y uso del servicio <strong>TrankaPortal</strong> (en adelante,
-          "el Servicio"), provisto por <strong>[TU_RAZON_SOCIAL]</strong>, CUIT{" "}
-          <strong>[TU_CUIT]</strong>, con domicilio en <strong>[TU_DIRECCION]</strong>,
+          "el Servicio"), provisto por <strong>Juan Cruz Montagni (monotributista), comercialmente identificado como Trankasoft</strong>, CUIT{" "}
+          <strong>20-37774857-4</strong>, con domicilio en <strong>Saavedra 2152, Villa Gobernador Gálvez (CP 2124), Provincia de Santa Fe, Argentina</strong>,
           República Argentina.
         </Para>
         <Para>
@@ -89,7 +89,7 @@ export default function TerminosPage() {
         <Section title="5. Propiedad intelectual">
           <Para>
             El software, marca, diseño y contenido del Servicio son propiedad de{" "}
-            <strong>[TU_RAZON_SOCIAL]</strong>. Los datos cargados por usted
+            <strong>Juan Cruz Montagni (monotributista), comercialmente identificado como Trankasoft</strong>. Los datos cargados por usted
             (información de empleados, documentos, registros, etc.) son de su
             propiedad — TrankaPortal actúa exclusivamente como custodio y
             procesador de dichos datos para proveerle el Servicio.
@@ -165,7 +165,7 @@ export default function TerminosPage() {
             Estos Términos se rigen por las leyes de la República Argentina.
             Cualquier disputa que surja en relación con estos Términos o con el
             Servicio será resuelta en los Tribunales Ordinarios de{" "}
-            <strong>[JURISDICCION]</strong>, con renuncia expresa a cualquier
+            <strong>la ciudad de Rosario, Provincia de Santa Fe</strong>, con renuncia expresa a cualquier
             otra jurisdicción que pudiera corresponder.
           </Para>
         </Section>
@@ -174,13 +174,13 @@ export default function TerminosPage() {
           <Para>Para consultas, reclamos o notificaciones relacionadas con estos Términos:</Para>
           <ul className="ml-6 list-disc space-y-1.5">
             <li>
-              <strong>Email</strong>: [TU_EMAIL_CONTACTO]
+              <strong>Email</strong>: soporte@trankasoft.com
             </li>
             <li>
-              <strong>Domicilio</strong>: [TU_DIRECCION]
+              <strong>Domicilio</strong>: Saavedra 2152, Villa Gobernador Gálvez (CP 2124), Provincia de Santa Fe, Argentina
             </li>
             <li>
-              <strong>CUIT</strong>: [TU_CUIT]
+              <strong>CUIT</strong>: 20-37774857-4
             </li>
           </ul>
         </Section>

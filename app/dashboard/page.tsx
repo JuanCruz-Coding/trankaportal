@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { currentUser } from "@clerk/nextjs/server";
 import {
   Users,
   Clock,
@@ -7,6 +8,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Reveal } from "@/components/reveal";
 import { prisma } from "@/lib/prisma";
 import { getCurrentEmployeeId, getOrgContext } from "@/lib/tenant";
 import { getMyCurrentBalance } from "./time-off/actions";
@@ -15,6 +17,7 @@ import { STATUS_LABEL, STATUS_VARIANT } from "@/lib/validations/time-off";
 export default async function DashboardHome() {
   const ctx = await getOrgContext();
   const myId = await getCurrentEmployeeId();
+  const user = await currentUser();
 
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
@@ -86,19 +89,27 @@ export default async function DashboardHome() {
       getMyCurrentBalance(),
     ]);
 
+  const greeting = computeGreeting(org?.timezone ?? "America/Argentina/Buenos_Aires");
+  const firstName = user?.firstName ?? "";
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Hola{ctx.role === "employee" ? "" : ""} 👋
+      <Reveal>
+        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+          {greeting}
+          {firstName ? <span className="text-primary">, {firstName}</span> : ""}.
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           {org?.name ?? "Tu organización"} · Plan{" "}
-          <span className="font-medium">{org?.subscription?.plan.name}</span> ·
-          Rol{" "}
-          <span className="font-medium">{ctx.role.toUpperCase()}</span>
+          <span className="font-medium text-foreground">
+            {org?.subscription?.plan.name}
+          </span>{" "}
+          · Rol{" "}
+          <span className="font-medium text-foreground">
+            {ctx.role.toUpperCase()}
+          </span>
         </p>
-      </div>
+      </Reveal>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -261,4 +272,18 @@ function formatTime(d: Date, tz: string | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function computeGreeting(timezone: string): string {
+  // Hora local en la TZ de la org. Mañana 5-12, tarde 12-19, noche 19-5.
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date())
+  );
+  if (hour >= 5 && hour < 12) return "Buenos días";
+  if (hour >= 12 && hour < 19) return "Buenas tardes";
+  return "Buenas noches";
 }
