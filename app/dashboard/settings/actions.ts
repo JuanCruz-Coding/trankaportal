@@ -17,6 +17,16 @@ export async function changePlan(planKey: string) {
 
   const key = planKeySchema.parse(planKey);
 
+  // Self-service: solo permitimos downgrade a Starter desde la UI.
+  // Upgrades a Pro/Business requieren contacto manual + cobro:
+  // el cliente nos escribe a hola@trankasoft.com, transfiere, y nosotros
+  // aplicamos el cambio directamente en Supabase Table Editor.
+  if (key !== "starter") {
+    throw new Error(
+      "Para upgradear a Pro o Business, contactanos a hola@trankasoft.com. Te respondemos en menos de 24hs con el detalle de pago."
+    );
+  }
+
   const newPlan = await prisma.plan.findUnique({
     where: { key },
     select: { id: true },
