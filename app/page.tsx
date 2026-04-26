@@ -85,11 +85,14 @@ export default async function Home({
   searchParams: Promise<{ need?: string; error?: string }>;
 }) {
   const { userId, orgId } = await auth();
-  // Logueado con org → directo al dashboard.
-  if (userId && orgId) redirect("/dashboard");
-
   const params = await searchParams;
+
+  // Logueado con org → directo al dashboard. Excepto si venimos de un error de
+  // sync (loop break defensivo).
+  if (userId && orgId && !params.error) redirect("/dashboard");
+
   const needsOrg = params.need === "org";
+  const syncError = params.error === "sync";
 
   const plans = await prisma.plan.findMany({
     where: { isActive: true },
@@ -106,6 +109,14 @@ export default async function Home({
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
             Estás logueado pero todavía no elegiste una organización. Usá el
             selector arriba para crear una nueva o elegir una existente.
+          </div>
+        </div>
+      ) : null}
+      {syncError ? (
+        <div className="mx-auto max-w-5xl px-4 pt-6">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+            Hubo un problema sincronizando tu organización. Recargá la página
+            (Ctrl+Shift+R). Si persiste, contactanos a hola@trankasoft.com.
           </div>
         </div>
       ) : null}

@@ -1,6 +1,10 @@
 import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import {
+  ensureEmployeeSynced,
+  ensureOrganizationSynced,
+} from "@/lib/org-sync";
 
 export type OrgRole = "admin" | "hr" | "manager" | "employee";
 
@@ -17,23 +21,24 @@ export type OrgContext = {
  * Reglas:
  *  - Si no hay sesión → lanza `UnauthenticatedError`.
  *  - Si hay sesión pero el user no eligió una Organization activa → lanza `NoOrgSelectedError`.
- *  - Si la Organization existe en Clerk pero no en nuestra DB → lanza `OrgNotSyncedError`
- *    (el webhook debería haberla creado; si no, investigar).
+ *  - Si la Organization existe en Clerk pero no en nuestra DB → lazy-sync la crea
+ *    on-the-fly desde Clerk API (fallback al webhook).
  *
  * **Esta es la ÚNICA forma en la que el resto del código debe obtener `organizationId`.**
  * Todas las queries Prisma tenant-safe hacen `where: { organizationId: ctx.organizationId }`.
+ *
+ * Cacheado por request (react.cache) — múltiples llamadas en un mismo render
+ * comparten el resultado.
  */
-export async function getOrgContext(): Promise<OrgContext> {
+export const getOrgContext = cache(async (): Promise<OrgContext> => {
   const { userId, orgId, orgRole } = await auth();
 
   if (!userId) throw new UnauthenticatedError();
   if (!orgId) throw new NoOrgSelectedError();
 
-  const org = await prisma.organization.findUnique({
-    where: { clerkOrgId: orgId },
-    select: { id: true },
-  });
-  if (!org) throw new OrgNotSyncedError(orgId);
+  // Lazy-sync: si la org no está en DB, la creamos desde Clerk API.
+  // Esto cubre el race condition entre Clerk crear la org y el webhook llegar.
+  const org = await ensureOrganizationSynced(orgId);
 
   return {
     clerkUserId: userId,
@@ -41,7 +46,7 @@ export async function getOrgContext(): Promise<OrgContext> {
     organizationId: org.id,
     role: normalizeRole(orgRole),
   };
-}
+});
 
 /**
  * Variante que devuelve `null` en vez de tirar si no hay contexto. Útil cuando
@@ -60,22 +65,22 @@ export async function tryGetOrgContext(): Promise<OrgContext | null> {
  * Útil para queries "me muestra solo lo mío" — por ejemplo, un Manager
  * viendo solo sus subordinados.
  *
- * Devuelve null si no hay fila Employee para ese clerkUserId (edge case:
- * webhook no corrió todavía, o usuario fue desactivado y su fila eliminada).
+ * Si el Employee no existe en DB, lo lazy-syncea desde Clerk API (fallback
+ * al webhook organizationMembership.created).
  *
- * Cacheado por request (react.cache) — múltiples llamadas en un mismo render
- * comparten la query.
+ * Devuelve null solo si Clerk API falla o si la cuenta de Clerk no responde.
+ *
+ * Cacheado por request.
  */
 export const getCurrentEmployeeId = cache(async (): Promise<string | null> => {
   const ctx = await getOrgContext();
-  const emp = await prisma.employee.findFirst({
-    where: {
-      organizationId: ctx.organizationId,
-      clerkUserId: ctx.clerkUserId,
-    },
-    select: { id: true },
-  });
-  return emp?.id ?? null;
+  try {
+    const emp = await ensureEmployeeSynced(ctx.clerkUserId, ctx.organizationId);
+    return emp.id;
+  } catch (err) {
+    console.error("[tenant] No se pudo obtener/crear Employee:", err);
+    return null;
+  }
 });
 
 /**
@@ -118,6 +123,10 @@ export class NoOrgSelectedError extends Error {
   }
 }
 
+/**
+ * @deprecated Con lazy-sync activo, este error ya no debería ocurrir en práctica.
+ * Mantenido por compatibilidad de tipo en pages que lo importan.
+ */
 export class OrgNotSyncedError extends Error {
   constructor(clerkOrgId: string) {
     super(`La organización ${clerkOrgId} existe en Clerk pero no en la DB.`);
