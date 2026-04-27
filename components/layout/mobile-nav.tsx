@@ -30,11 +30,24 @@ export function MobileNav({
       <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" aria-label="Abrir menú" />}>
         <Menu className="h-5 w-5" />
       </SheetTrigger>
-      <SheetContent side="left" className="w-64 p-0">
-        <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle>TrankaPortal</SheetTitle>
+      <SheetContent side="left" className="w-72 p-0">
+        <SheetHeader className="border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-[var(--color-brand)]" />
+            <div className="flex flex-col leading-tight">
+              <SheetTitle className="text-[15px] font-semibold tracking-tight">
+                TrankaPortal
+              </SheetTitle>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                by Trankasoft
+              </span>
+            </div>
+          </div>
         </SheetHeader>
-        <div className="p-3">
+        <div className="px-3 py-4">
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            General
+          </p>
           <NavList
             pathname={pathname}
             role={role}

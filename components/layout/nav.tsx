@@ -94,11 +94,11 @@ export function NavList({
             <span
               key={item.href}
               title="Mejorá tu plan para acceder"
-              className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground opacity-60"
+              className="group/nav relative flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium text-muted-foreground/70"
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
               <span className="flex-1">{item.label}</span>
-              <Lock className="h-3 w-3" />
+              <Lock className="h-3.5 w-3.5" />
             </span>
           );
         }
@@ -109,13 +109,26 @@ export function NavList({
             href={item.href}
             onClick={onItemClick}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "group/nav relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ease-out",
               active
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                ? "bg-surface text-foreground"
+                : "text-muted-foreground hover:bg-surface/60 hover:text-foreground"
             )}
           >
-            <Icon className="h-4 w-4" />
+            {/* Indicador izquierdo accent — estilo Linear */}
+            {active ? (
+              <span
+                aria-hidden
+                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+              />
+            ) : null}
+            <Icon
+              className={cn(
+                "h-[18px] w-[18px] transition-colors",
+                active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground"
+              )}
+              strokeWidth={1.75}
+            />
             {item.label}
           </Link>
         );
