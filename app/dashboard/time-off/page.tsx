@@ -15,53 +15,66 @@ import { getMyCurrentBalance } from "./actions";
 export default async function TimeOffPage() {
   const ctx = await getOrgContext();
   const myEmpId = await getCurrentEmployeeId();
-
-  const types = await prisma.timeOffType.findMany({
-    where: { organizationId: ctx.organizationId },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, affectsBalance: true },
-  });
-
-  // Mis solicitudes (PENDING y APPROVED + últimas del histórico).
-  const myRequests = myEmpId
-    ? await prisma.timeOffRequest.findMany({
-        where: { employeeId: myEmpId, organizationId: ctx.organizationId },
-        orderBy: [{ createdAt: "desc" }],
-        take: 50,
-        include: {
-          type: { select: { name: true } },
-          employee: { select: { firstName: true, lastName: true } },
-        },
-      })
-    : [];
-
-  // Pendings para revisar (solo si puede aprobar).
   const canReview =
     ctx.role === "admin" || ctx.role === "hr" || ctx.role === "manager";
 
-  let toReview: typeof myRequests = [];
-  if (canReview) {
-    const whereBase = {
-      organizationId: ctx.organizationId,
-      status: "PENDING" as const,
-    };
-    // Manager: solo subordinados directos.
-    const where =
-      ctx.role === "manager" && myEmpId
-        ? { ...whereBase, employee: { managerId: myEmpId } }
-        : whereBase;
+  // Construir wheres antes de Promise.all
+  const reviewWhere =
+    ctx.role === "manager" && myEmpId
+      ? {
+          organizationId: ctx.organizationId,
+          status: "PENDING" as const,
+          employee: { managerId: myEmpId },
+        }
+      : {
+          organizationId: ctx.organizationId,
+          status: "PENDING" as const,
+        };
 
-    toReview = await prisma.timeOffRequest.findMany({
-      where,
-      orderBy: [{ createdAt: "asc" }],
-      include: {
-        type: { select: { name: true } },
-        employee: { select: { firstName: true, lastName: true } },
-      },
-    });
-  }
-
-  const balance = await getMyCurrentBalance();
+  // 4 queries en paralelo (antes secuenciales).
+  const [types, myRequests, toReview, balance] = await Promise.all([
+    prisma.timeOffType.findMany({
+      where: { organizationId: ctx.organizationId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, affectsBalance: true },
+    }),
+    myEmpId
+      ? prisma.timeOffRequest.findMany({
+          where: { employeeId: myEmpId, organizationId: ctx.organizationId },
+          orderBy: [{ createdAt: "desc" }],
+          take: 50,
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            totalDays: true,
+            status: true,
+            reason: true,
+            reviewNote: true,
+            type: { select: { name: true } },
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        })
+      : Promise.resolve([] as never[]),
+    canReview
+      ? prisma.timeOffRequest.findMany({
+          where: reviewWhere,
+          orderBy: [{ createdAt: "asc" }],
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            totalDays: true,
+            status: true,
+            reason: true,
+            reviewNote: true,
+            type: { select: { name: true } },
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        })
+      : Promise.resolve([] as never[]),
+    getMyCurrentBalance(),
+  ]);
 
   const toRow = (r: (typeof myRequests)[number]): RequestRow => ({
     id: r.id,

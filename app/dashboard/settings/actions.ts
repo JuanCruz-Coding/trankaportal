@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
+import { orgFeaturesCacheTag } from "@/lib/features";
 
 // =========================================================================
 // Cambio de plan
@@ -38,6 +39,8 @@ export async function changePlan(planKey: string) {
     data: { planId: newPlan.id, status: "ACTIVE" },
   });
 
+  // Invalidar caché de features (la sidebar ya muestra/oculta módulos según plan).
+  revalidateTag(orgFeaturesCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/settings");
 }

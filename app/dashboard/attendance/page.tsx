@@ -18,13 +18,9 @@ export default async function AttendancePage() {
   const ctx = await getOrgContext();
   const myId = await getCurrentEmployeeId();
 
-  const org = await prisma.organization.findUnique({
-    where: { id: ctx.organizationId },
-    select: { timezone: true },
-  });
-  const tz = org?.timezone ?? "America/Argentina/Buenos_Aires";
+  // tz viene del ctx (no requiere query extra).
+  const tz = ctx.organizationTimezone;
 
-  // Hoy en la TZ de la org → misma lógica que actions.ts.
   const todayParts = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -36,26 +32,40 @@ export default async function AttendancePage() {
   const d = todayParts.find((p) => p.type === "day")!.value;
   const todayDate = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 
-  const todayRecord = myId
-    ? await prisma.attendanceRecord.findUnique({
-        where: { employeeId_date: { employeeId: myId, date: todayDate } },
-      })
-    : null;
+  // 2 queries en paralelo (antes secuenciales).
+  const [todayRecord, recent] = await Promise.all([
+    myId
+      ? prisma.attendanceRecord.findUnique({
+          where: { employeeId_date: { employeeId: myId, date: todayDate } },
+          select: {
+            id: true,
+            checkIn: true,
+            checkOut: true,
+            totalMinutes: true,
+          },
+        })
+      : Promise.resolve(null),
+    myId
+      ? prisma.attendanceRecord.findMany({
+          where: { employeeId: myId, organizationId: ctx.organizationId },
+          orderBy: { date: "desc" },
+          take: 30,
+          select: {
+            id: true,
+            date: true,
+            checkIn: true,
+            checkOut: true,
+            totalMinutes: true,
+          },
+        })
+      : Promise.resolve([] as never[]),
+  ]);
 
   const status: "not-started" | "working" | "finished" = !todayRecord
     ? "not-started"
     : todayRecord.checkOut
     ? "finished"
     : "working";
-
-  // Últimos 30 días.
-  const recent = myId
-    ? await prisma.attendanceRecord.findMany({
-        where: { employeeId: myId, organizationId: ctx.organizationId },
-        orderBy: { date: "desc" },
-        take: 30,
-      })
-    : [];
 
   const canSeeTeamReport =
     ctx.role === "admin" || ctx.role === "hr" || ctx.role === "manager";

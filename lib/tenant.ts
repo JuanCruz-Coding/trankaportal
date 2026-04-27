@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import {
   ensureEmployeeSynced,
   ensureOrganizationSynced,
+  fastFetchOrgAndEmployee,
 } from "@/lib/org-sync";
 
 export type OrgRole = "admin" | "hr" | "manager" | "employee";
@@ -13,21 +14,22 @@ export type OrgContext = {
   clerkUserId: string;
   clerkOrgId: string;
   organizationId: string;
+  organizationName: string;
+  organizationTimezone: string;
   role: OrgRole;
-  /** Employee.id del usuario en la DB. Siempre seteado tras lazy-sync. */
   employeeId: string;
 };
 
 /**
  * Resuelve el contexto de tenant del request actual.
  *
- * - Auth viene de Clerk (userId, orgId).
- * - Authorization (role) viene de **nuestra DB** (Employee.role).
- *   Clerk solo se usa como semilla en la primera creación del Employee:
- *   si en Clerk el user es `admin`, en DB arranca como ADMIN; sino EMPLOYEE.
- *   Después un ADMIN puede cambiarlo desde la app y la DB es la verdad.
+ * Performance:
+ *  - Happy path (org+employee ya sincronizados): 1 query con join.
+ *  - Fallback (primer login post-Clerk): 2 queries (ensureOrg + ensureEmp) + Clerk API.
+ *  - Cacheado por request via react.cache.
  *
- * Cacheado por request.
+ * Authorization:
+ *  - Auth viene de Clerk (userId, orgId). Authorization (role) viene de DB.
  */
 export const getOrgContext = cache(async (): Promise<OrgContext> => {
   const { userId, orgId, orgRole } = await auth();
@@ -35,15 +37,31 @@ export const getOrgContext = cache(async (): Promise<OrgContext> => {
   if (!userId) throw new UnauthenticatedError();
   if (!orgId) throw new NoOrgSelectedError();
 
+  // Fast path: 1 query
+  const fast = await fastFetchOrgAndEmployee(userId, orgId);
+  if (fast) {
+    return {
+      clerkUserId: userId,
+      clerkOrgId: orgId,
+      organizationId: fast.organizationId,
+      organizationName: fast.organizationName,
+      organizationTimezone: fast.organizationTimezone,
+      role: dbRoleToOrgRole(fast.employeeRole),
+      employeeId: fast.employeeId,
+    };
+  }
+
+  // Fallback: lazy-sync. Sucede en el primer request post sign-up + create org.
   const org = await ensureOrganizationSynced(orgId);
   const emp = await ensureEmployeeSynced(userId, org.id, {
     defaultClerkRole: orgRole,
   });
-
   return {
     clerkUserId: userId,
     clerkOrgId: orgId,
     organizationId: org.id,
+    organizationName: org.name,
+    organizationTimezone: org.timezone,
     role: dbRoleToOrgRole(emp.role),
     employeeId: emp.id,
   };
@@ -59,9 +77,7 @@ export async function tryGetOrgContext(): Promise<OrgContext | null> {
 
 /**
  * Devuelve el Employee.id del usuario logueado.
- *
- * Mantenida por compatibilidad con código pre-refactor. Internamente lo lee de
- * `getOrgContext().employeeId` (no hace una query extra — está cacheado).
+ * Internamente usa getOrgContext (cacheado). No agrega queries.
  */
 export const getCurrentEmployeeId = cache(async (): Promise<string | null> => {
   try {
@@ -77,10 +93,6 @@ export function requireRole(ctx: OrgContext, allowed: OrgRole[]): void {
     throw new ForbiddenError(`Rol '${ctx.role}' no autorizado. Requiere: ${allowed.join(", ")}`);
   }
 }
-
-// =========================================================================
-// Mapeo enum DB ↔ tipo TS
-// =========================================================================
 
 function dbRoleToOrgRole(role: EmployeeRole): OrgRole {
   switch (role) {
@@ -110,10 +122,6 @@ export function orgRoleToDbRole(role: OrgRole): EmployeeRole {
   }
 }
 
-// =========================================================================
-// Errores tipados
-// =========================================================================
-
 export class UnauthenticatedError extends Error {
   constructor() {
     super("No hay sesión activa.");
@@ -128,10 +136,7 @@ export class NoOrgSelectedError extends Error {
   }
 }
 
-/**
- * @deprecated Con lazy-sync activo, este error ya no debería ocurrir en práctica.
- * Mantenido por compatibilidad de tipo en pages que lo importan.
- */
+/** @deprecated Con lazy-sync ya no debería ocurrir. */
 export class OrgNotSyncedError extends Error {
   constructor(clerkOrgId: string) {
     super(`La organización ${clerkOrgId} existe en Clerk pero no en la DB.`);

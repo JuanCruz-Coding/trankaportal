@@ -34,7 +34,22 @@ export default async function EmployeeDetailPage({
 
   const employee = await prisma.employee.findFirst({
     where: { id, organizationId: ctx.organizationId },
-    include: {
+    select: {
+      id: true,
+      clerkUserId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      dni: true,
+      phone: true,
+      birthDate: true,
+      address: true,
+      hireDate: true,
+      contractType: true,
+      salary: true,
+      managerId: true,
+      isActive: true,
+      role: true,
       department: { select: { name: true } },
       position: { select: { title: true } },
       manager: { select: { id: true, firstName: true, lastName: true } },

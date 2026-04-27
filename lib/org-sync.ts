@@ -9,16 +9,61 @@ const DEFAULT_TIMEOFF_TYPES = [
 ];
 
 /**
- * Garantiza que exista una fila `Organization` en la DB para la org de Clerk
- * indicada. Si no existe, la crea on-the-fly con datos de Clerk API +
- * Subscription Starter + TimeOffTypes default. Idempotente vía upsert.
+ * Fast-path: con UNA sola query trae Org + Employee del usuario en esa org.
+ * Si ambos existen, devuelve los datos. Si alguno falta, devuelve null y el
+ * caller debe usar las funciones ensure* para sincronizar.
+ *
+ * Esto reemplaza el patrón anterior de 2 queries (ensureOrg + ensureEmp) en
+ * el happy path (que es el 99% de los requests).
  */
-export async function ensureOrganizationSynced(
+export async function fastFetchOrgAndEmployee(
+  clerkUserId: string,
   clerkOrgId: string
-): Promise<{ id: string }> {
+): Promise<{
+  organizationId: string;
+  organizationName: string;
+  organizationTimezone: string;
+  employeeId: string;
+  employeeRole: EmployeeRole;
+} | null> {
+  const emp = await prisma.employee.findFirst({
+    where: {
+      clerkUserId,
+      organization: { clerkOrgId },
+    },
+    select: {
+      id: true,
+      role: true,
+      organization: {
+        select: { id: true, name: true, timezone: true },
+      },
+    },
+  });
+  if (!emp) return null;
+  return {
+    organizationId: emp.organization.id,
+    organizationName: emp.organization.name,
+    organizationTimezone: emp.organization.timezone,
+    employeeId: emp.id,
+    employeeRole: emp.role,
+  };
+}
+
+/**
+ * Garantiza que exista una fila `Organization` en la DB. Si no existe, la crea
+ * desde Clerk API + Subscription Starter + TimeOffTypes default.
+ *
+ * Devuelve los campos que típicamente necesitamos en el dashboard (name, tz)
+ * para que el caller no tenga que hacer otra query.
+ */
+export async function ensureOrganizationSynced(clerkOrgId: string): Promise<{
+  id: string;
+  name: string;
+  timezone: string;
+}> {
   const existing = await prisma.organization.findUnique({
     where: { clerkOrgId },
-    select: { id: true },
+    select: { id: true, name: true, timezone: true },
   });
   if (existing) return existing;
 
@@ -45,36 +90,18 @@ export async function ensureOrganizationSynced(
       subscription: { create: { planId: starterPlan.id, status: "ACTIVE" } },
       timeOffTypes: { createMany: { data: DEFAULT_TIMEOFF_TYPES } },
     },
-    select: { id: true },
+    select: { id: true, name: true, timezone: true },
   });
 
-  console.log(`[org-sync] Organization lazy-creada: ${clerkOrg.name} (${created.id})`);
+  console.log(`[org-sync] Organization lazy-creada: ${created.name} (${created.id})`);
   return created;
 }
 
-/**
- * Mapea el rol de Clerk al rol de aplicación (DB).
- * Clerk free/Pro tier solo nos da `admin` y `basic_member` por default.
- * Mapeamos:
- *   - admin (en Clerk) → ADMIN (en DB)
- *   - cualquier otro     → EMPLOYEE
- *
- * Después, el ADMIN puede cambiar el rol de cualquiera a HR / MANAGER /
- * EMPLOYEE / ADMIN desde el dashboard. Esa elección persiste en la DB y
- * NO se sobreescribe con el rol de Clerk en sincronizaciones futuras.
- */
 function clerkRoleToDbRole(clerkRole: string | null | undefined): EmployeeRole {
   const v = (clerkRole ?? "").replace(/^org:/, "").toLowerCase();
   return v === "admin" ? "ADMIN" : "EMPLOYEE";
 }
 
-/**
- * Garantiza que exista la fila `Employee` del usuario logueado en la org
- * indicada. Si no existe, la crea desde Clerk API.
- *
- * Devuelve el id y el rol DB (EMPLOYEE/MANAGER/HR/ADMIN). El rol viene de
- * la fila DB; en la primera creación se semilla a partir del rol de Clerk.
- */
 export async function ensureEmployeeSynced(
   clerkUserId: string,
   organizationDbId: string,
@@ -86,8 +113,6 @@ export async function ensureEmployeeSynced(
   });
   if (existing) return existing;
 
-  // Caso edge: ya hay una fila con ese clerkUserId pero en OTRA org
-  // (limitación MVP multi-org).
   const globalConflict = await prisma.employee.findUnique({
     where: { clerkUserId },
     select: { id: true, organizationId: true, role: true },
@@ -99,7 +124,6 @@ export async function ensureEmployeeSynced(
     return { id: globalConflict.id, role: globalConflict.role };
   }
 
-  // Fetch del user de Clerk para nombre + email.
   const client = await clerkClient();
   const user = await client.users.getUser(clerkUserId);
 
@@ -111,7 +135,6 @@ export async function ensureEmployeeSynced(
 
   const seedRole = clerkRoleToDbRole(options?.defaultClerkRole ?? null);
 
-  // Caso: HR precargó el Employee por email sin clerkUserId. Linkear.
   const preloaded = await prisma.employee.findFirst({
     where: {
       organizationId: organizationDbId,
@@ -128,8 +151,6 @@ export async function ensureEmployeeSynced(
         firstName: user.firstName ?? undefined,
         lastName: user.lastName ?? undefined,
         isActive: true,
-        // Si HR ya le había asignado un rol distinto a EMPLOYEE, respetarlo.
-        // Si está en EMPLOYEE default, sobreescribir solo si Clerk dice admin.
         ...(preloaded.role === "EMPLOYEE" && seedRole === "ADMIN"
           ? { role: "ADMIN" }
           : {}),

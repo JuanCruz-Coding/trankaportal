@@ -17,22 +17,32 @@ import { STATUS_LABEL, STATUS_VARIANT } from "@/lib/validations/time-off";
 export default async function DashboardHome() {
   const ctx = await getOrgContext();
   const myId = await getCurrentEmployeeId();
-  const user = await currentUser();
-
-  const org = await prisma.organization.findUnique({
-    where: { id: ctx.organizationId },
-    select: {
-      name: true,
-      timezone: true,
-      subscription: { select: { plan: { select: { key: true, name: true } } } },
-    },
-  });
-
   const canManage = ctx.role === "admin" || ctx.role === "hr" || ctx.role === "manager";
 
-  // Datos paralelos para los widgets.
-  const [activeEmployees, pendingForReview, myUpcoming, todayRecord, balance] =
+  // tz viene del ctx; nombre de org también. La única cosa que sigue
+  // necesitando una query separada es el plan (vía subscription).
+  const tz = ctx.organizationTimezone;
+
+  // Pre-computar fecha de hoy una vez (la usa todayRecord query).
+  const todayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const todayY = todayParts.find((p) => p.type === "year")!.value;
+  const todayM = todayParts.find((p) => p.type === "month")!.value;
+  const todayD = todayParts.find((p) => p.type === "day")!.value;
+  const todayDate = new Date(`${todayY}-${todayM}-${todayD}T00:00:00.000Z`);
+
+  // TODO en paralelo: user de Clerk + 6 queries.
+  const [user, plan, activeEmployees, pendingForReview, myUpcoming, todayRecord, balance] =
     await Promise.all([
+      currentUser(),
+      prisma.subscription.findUnique({
+        where: { organizationId: ctx.organizationId },
+        select: { plan: { select: { name: true } } },
+      }),
       // Empleados activos
       prisma.employee.count({
         where: { organizationId: ctx.organizationId, isActive: true },
@@ -64,32 +74,18 @@ export default async function DashboardHome() {
         : Promise.resolve([] as never[]),
       // Mi attendance de hoy
       myId
-        ? (async () => {
-            const tz = org?.timezone ?? "America/Argentina/Buenos_Aires";
-            const parts = new Intl.DateTimeFormat("en-CA", {
-              timeZone: tz,
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            }).formatToParts(new Date());
-            const y = parts.find((p) => p.type === "year")!.value;
-            const m = parts.find((p) => p.type === "month")!.value;
-            const d = parts.find((p) => p.type === "day")!.value;
-            return prisma.attendanceRecord.findUnique({
-              where: {
-                employeeId_date: {
-                  employeeId: myId,
-                  date: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
-                },
-              },
-            });
-          })()
+        ? prisma.attendanceRecord.findUnique({
+            where: {
+              employeeId_date: { employeeId: myId, date: todayDate },
+            },
+            select: { checkIn: true, checkOut: true },
+          })
         : Promise.resolve(null),
       // Mi saldo de vacaciones
       getMyCurrentBalance(),
     ]);
 
-  const greeting = computeGreeting(org?.timezone ?? "America/Argentina/Buenos_Aires");
+  const greeting = computeGreeting(tz);
   const firstName = user?.firstName ?? "";
 
   return (
@@ -100,9 +96,9 @@ export default async function DashboardHome() {
           {firstName ? <span className="text-primary">, {firstName}</span> : ""}.
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {org?.name ?? "Tu organización"} · Plan{" "}
+          {ctx.organizationName} · Plan{" "}
           <span className="font-medium text-foreground">
-            {org?.subscription?.plan.name}
+            {plan?.plan.name ?? "—"}
           </span>{" "}
           · Rol{" "}
           <span className="font-medium text-foreground">
@@ -137,7 +133,7 @@ export default async function DashboardHome() {
           }
           hint={
             todayRecord?.checkIn
-              ? `Entrada ${formatTime(todayRecord.checkIn, org?.timezone)}`
+              ? `Entrada ${formatTime(todayRecord.checkIn, tz)}`
               : undefined
           }
           href="/dashboard/attendance"
