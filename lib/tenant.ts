@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
+import { EmployeeRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   ensureEmployeeSynced,
@@ -11,24 +12,22 @@ export type OrgRole = "admin" | "hr" | "manager" | "employee";
 export type OrgContext = {
   clerkUserId: string;
   clerkOrgId: string;
-  organizationId: string; // id interno en nuestra DB (no el de Clerk)
+  organizationId: string;
   role: OrgRole;
+  /** Employee.id del usuario en la DB. Siempre seteado tras lazy-sync. */
+  employeeId: string;
 };
 
 /**
- * Resuelve el contexto de tenant del request actual a partir de la sesión de Clerk.
+ * Resuelve el contexto de tenant del request actual.
  *
- * Reglas:
- *  - Si no hay sesión → lanza `UnauthenticatedError`.
- *  - Si hay sesión pero el user no eligió una Organization activa → lanza `NoOrgSelectedError`.
- *  - Si la Organization existe en Clerk pero no en nuestra DB → lazy-sync la crea
- *    on-the-fly desde Clerk API (fallback al webhook).
+ * - Auth viene de Clerk (userId, orgId).
+ * - Authorization (role) viene de **nuestra DB** (Employee.role).
+ *   Clerk solo se usa como semilla en la primera creación del Employee:
+ *   si en Clerk el user es `admin`, en DB arranca como ADMIN; sino EMPLOYEE.
+ *   Después un ADMIN puede cambiarlo desde la app y la DB es la verdad.
  *
- * **Esta es la ÚNICA forma en la que el resto del código debe obtener `organizationId`.**
- * Todas las queries Prisma tenant-safe hacen `where: { organizationId: ctx.organizationId }`.
- *
- * Cacheado por request (react.cache) — múltiples llamadas en un mismo render
- * comparten el resultado.
+ * Cacheado por request.
  */
 export const getOrgContext = cache(async (): Promise<OrgContext> => {
   const { userId, orgId, orgRole } = await auth();
@@ -36,22 +35,20 @@ export const getOrgContext = cache(async (): Promise<OrgContext> => {
   if (!userId) throw new UnauthenticatedError();
   if (!orgId) throw new NoOrgSelectedError();
 
-  // Lazy-sync: si la org no está en DB, la creamos desde Clerk API.
-  // Esto cubre el race condition entre Clerk crear la org y el webhook llegar.
   const org = await ensureOrganizationSynced(orgId);
+  const emp = await ensureEmployeeSynced(userId, org.id, {
+    defaultClerkRole: orgRole,
+  });
 
   return {
     clerkUserId: userId,
     clerkOrgId: orgId,
     organizationId: org.id,
-    role: normalizeRole(orgRole),
+    role: dbRoleToOrgRole(emp.role),
+    employeeId: emp.id,
   };
 });
 
-/**
- * Variante que devuelve `null` en vez de tirar si no hay contexto. Útil cuando
- * querés render condicional (ej. "si está logueado, mostrar esto").
- */
 export async function tryGetOrgContext(): Promise<OrgContext | null> {
   try {
     return await getOrgContext();
@@ -61,32 +58,20 @@ export async function tryGetOrgContext(): Promise<OrgContext | null> {
 }
 
 /**
- * Devuelve el Employee.id del usuario logueado (resolviendo por clerkUserId).
- * Útil para queries "me muestra solo lo mío" — por ejemplo, un Manager
- * viendo solo sus subordinados.
+ * Devuelve el Employee.id del usuario logueado.
  *
- * Si el Employee no existe en DB, lo lazy-syncea desde Clerk API (fallback
- * al webhook organizationMembership.created).
- *
- * Devuelve null solo si Clerk API falla o si la cuenta de Clerk no responde.
- *
- * Cacheado por request.
+ * Mantenida por compatibilidad con código pre-refactor. Internamente lo lee de
+ * `getOrgContext().employeeId` (no hace una query extra — está cacheado).
  */
 export const getCurrentEmployeeId = cache(async (): Promise<string | null> => {
-  const ctx = await getOrgContext();
   try {
-    const emp = await ensureEmployeeSynced(ctx.clerkUserId, ctx.organizationId);
-    return emp.id;
-  } catch (err) {
-    console.error("[tenant] No se pudo obtener/crear Employee:", err);
+    const ctx = await getOrgContext();
+    return ctx.employeeId;
+  } catch {
     return null;
   }
 });
 
-/**
- * Exige que el rol del usuario esté en la lista permitida.
- * Usar en endpoints/pages: `requireRole(ctx, ["admin", "hr"])`.
- */
 export function requireRole(ctx: OrgContext, allowed: OrgRole[]): void {
   if (!allowed.includes(ctx.role)) {
     throw new ForbiddenError(`Rol '${ctx.role}' no autorizado. Requiere: ${allowed.join(", ")}`);
@@ -94,15 +79,35 @@ export function requireRole(ctx: OrgContext, allowed: OrgRole[]): void {
 }
 
 // =========================================================================
-// Normalización del rol
+// Mapeo enum DB ↔ tipo TS
 // =========================================================================
-// Clerk prefija los roles de organización con "org:" (ej. "org:admin").
-// Para simplificar el resto del código, devolvemos el rol "pelado".
-function normalizeRole(raw: string | null | undefined): OrgRole {
-  const v = (raw ?? "").replace(/^org:/, "").toLowerCase();
-  if (v === "admin" || v === "hr" || v === "manager" || v === "employee") return v;
-  // Rol desconocido → tratar como EMPLOYEE (principio de menor privilegio).
-  return "employee";
+
+function dbRoleToOrgRole(role: EmployeeRole): OrgRole {
+  switch (role) {
+    case "ADMIN":
+      return "admin";
+    case "HR":
+      return "hr";
+    case "MANAGER":
+      return "manager";
+    case "EMPLOYEE":
+    default:
+      return "employee";
+  }
+}
+
+export function orgRoleToDbRole(role: OrgRole): EmployeeRole {
+  switch (role) {
+    case "admin":
+      return "ADMIN";
+    case "hr":
+      return "HR";
+    case "manager":
+      return "MANAGER";
+    case "employee":
+    default:
+      return "EMPLOYEE";
+  }
 }
 
 // =========================================================================

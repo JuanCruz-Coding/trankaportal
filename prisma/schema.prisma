@@ -111,6 +111,13 @@ enum ContractType {
   INTERN
 }
 
+enum EmployeeRole {
+  EMPLOYEE
+  MANAGER
+  HR
+  ADMIN
+}
+
 model Employee {
   id             String  @id @default(cuid())
   organizationId String
@@ -134,6 +141,9 @@ model Employee {
   contractType ContractType?
   salary       Decimal?      @db.Decimal(12, 2)
   managerId    String?
+
+  // Rol de aplicación. Fuente de verdad para autorización (NO Clerk).
+  role EmployeeRole @default(EMPLOYEE)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

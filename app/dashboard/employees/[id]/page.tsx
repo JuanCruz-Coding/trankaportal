@@ -14,6 +14,7 @@ import {
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 import { EmployeeActiveToggle } from "../components/employee-active-toggle";
 import { DocumentsSection } from "../components/documents-section";
+import { EmployeeRoleChanger } from "../components/employee-role-changer";
 
 export default async function EmployeeDetailPage({
   params,
@@ -71,6 +72,7 @@ export default async function EmployeeDetailPage({
 
   // Solo admin/hr pueden editar y desactivar. Manager es read-only.
   const canEdit = ctx.role === "admin" || ctx.role === "hr";
+  const canChangeRole = ctx.role === "admin";
 
   return (
     <FeatureGate feature="employees">
@@ -147,6 +149,15 @@ export default async function EmployeeDetailPage({
               />
             ) : null}
           </DataCard>
+
+          {canChangeRole ? (
+            <DataCard title="Rol y permisos">
+              <EmployeeRoleChanger
+                employeeId={employee.id}
+                currentRole={employee.role}
+              />
+            </DataCard>
+          ) : null}
 
           {employee.subordinates.length > 0 ? (
             <DataCard title={`Equipo (${employee.subordinates.length})`} wide>

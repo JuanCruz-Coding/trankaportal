@@ -171,6 +171,12 @@ async function handleMembershipCreated(data: MembershipData) {
   }
 
   // Caso 4 — Alta limpia (self-onboarding: registro + creación de org).
+  // Mapeo del rol Clerk → rol DB. El creador de la org (admin en Clerk) queda
+  // como ADMIN. Cualquier otro miembro arranca como EMPLOYEE — un ADMIN puede
+  // promoverlo a HR/MANAGER después desde la app.
+  const clerkRole = (data.role ?? "").replace(/^org:/, "").toLowerCase();
+  const dbRole = clerkRole === "admin" ? "ADMIN" : "EMPLOYEE";
+
   const created = await prisma.employee.create({
     data: {
       organizationId: org.id,
@@ -178,6 +184,7 @@ async function handleMembershipCreated(data: MembershipData) {
       firstName: data.public_user_data.first_name ?? "",
       lastName: data.public_user_data.last_name ?? "",
       email,
+      role: dbRole,
     },
     select: { id: true },
   });
@@ -235,6 +242,7 @@ type OrganizationData = { id: string; name: string; slug?: string | null };
 
 type MembershipData = {
   organization: { id: string };
+  role?: string; // ej. "org:admin" o "org:basic_member"
   public_user_data: {
     user_id: string;
     first_name?: string | null;

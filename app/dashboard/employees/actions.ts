@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { EmployeeRole } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
 import {
@@ -68,6 +70,43 @@ export async function setEmployeeActive(id: string, isActive: boolean) {
   if (!existing) throw new Error("Empleado no encontrado.");
 
   await prisma.employee.update({ where: { id }, data: { isActive } });
+
+  revalidatePath("/dashboard/employees");
+  revalidatePath(`/dashboard/employees/${id}`);
+}
+
+// =========================================================================
+// Cambio de rol — solo ADMIN puede promover/degradar empleados.
+// =========================================================================
+
+const roleSchema = z.nativeEnum(EmployeeRole);
+
+export async function setEmployeeRole(id: string, role: string) {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin"]);
+
+  const newRole = roleSchema.parse(role);
+
+  const existing = await prisma.employee.findFirst({
+    where: { id, organizationId: ctx.organizationId },
+    select: { id: true, role: true, clerkUserId: true },
+  });
+  if (!existing) throw new Error("Empleado no encontrado.");
+
+  // Salvaguarda: no permitir que el último ADMIN se auto-degrade y la org
+  // quede sin admins.
+  if (existing.role === "ADMIN" && newRole !== "ADMIN") {
+    const adminCount = await prisma.employee.count({
+      where: { organizationId: ctx.organizationId, role: "ADMIN", isActive: true },
+    });
+    if (adminCount <= 1) {
+      throw new Error(
+        "No podés degradar al último administrador. Primero promové a otra persona."
+      );
+    }
+  }
+
+  await prisma.employee.update({ where: { id }, data: { role: newRole } });
 
   revalidatePath("/dashboard/employees");
   revalidatePath(`/dashboard/employees/${id}`);
