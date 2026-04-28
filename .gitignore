@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Claude Code local settings
 .claude/
+
+# Doc de contexto local (no se commitea)
+CONTEXT.md
