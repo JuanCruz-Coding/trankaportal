@@ -8,7 +8,15 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Reveal } from "@/components/reveal";
+import { cn } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { getCurrentEmployeeId, getOrgContext } from "@/lib/tenant";
 import { getMyCurrentBalance } from "./time-off/actions";
@@ -151,57 +159,68 @@ export default async function DashboardHome() {
       </section>
 
       <section className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold">Mis próximas ausencias</h2>
-            <Link
-              href="/dashboard/time-off"
-              className="text-xs text-muted-foreground hover:underline"
-            >
-              Ver todo
-            </Link>
-          </div>
-          {myUpcoming.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No tenés ausencias programadas.
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {myUpcoming.map((r) => (
-                <li key={r.id} className="flex items-center justify-between py-2">
-                  <div>
-                    <p className="text-sm font-medium">{r.type.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(r.startDate)} → {formatDate(r.endDate)} (
-                      {r.totalDays} días)
-                    </p>
-                  </div>
-                  <Badge variant={STATUS_VARIANT[r.status]}>
-                    {STATUS_LABEL[r.status]}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Mis próximas ausencias</CardTitle>
+            <CardAction>
+              <Link
+                href="/dashboard/time-off"
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                Ver todo
+              </Link>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            {myUpcoming.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No tenés ausencias programadas.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {myUpcoming.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{r.type.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(r.startDate)} → {formatDate(r.endDate)} (
+                        {r.totalDays} días)
+                      </p>
+                    </div>
+                    <Badge variant={STATUS_VARIANT[r.status]}>
+                      {STATUS_LABEL[r.status]}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
-          <h2 className="mb-4 text-base font-semibold">Atajos</h2>
-          <div className="space-y-2">
-            <Shortcut href="/dashboard/time-off" label="Solicitar ausencia" />
-            <Shortcut href="/dashboard/attendance" label="Marcar asistencia" />
-            <Shortcut href="/dashboard/profile" label="Editar mi perfil" />
-            {canManage ? (
-              <Shortcut
-                href="/dashboard/employees/chart"
-                label="Ver organigrama"
-              />
-            ) : null}
-            {ctx.role === "admin" ? (
-              <Shortcut href="/dashboard/settings" label="Configuración" />
-            ) : null}
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Atajos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              <Shortcut href="/dashboard/time-off" label="Solicitar ausencia" />
+              <Shortcut href="/dashboard/attendance" label="Marcar asistencia" />
+              <Shortcut href="/dashboard/profile" label="Editar mi perfil" />
+              {canManage ? (
+                <Shortcut
+                  href="/dashboard/employees/chart"
+                  label="Ver organigrama"
+                />
+              ) : null}
+              {ctx.role === "admin" ? (
+                <Shortcut href="/dashboard/settings" label="Configuración" />
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );
@@ -223,21 +242,27 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      className={`group rounded-lg border bg-card p-5 text-card-foreground shadow-sm transition-colors hover:bg-accent ${
-        highlight ? "ring-2 ring-primary/40" : ""
-      }`}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <Icon className="h-5 w-5 text-muted-foreground" />
-        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-      </div>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+    <Link href={href} className="group block">
+      <Card
+        className={cn(
+          "h-full transition-colors hover:bg-accent",
+          highlight ? "ring-2 ring-primary/40" : ""
+        )}
+      >
+        <CardContent>
+          <div className="mb-2 flex items-center justify-between">
+            <Icon className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1 text-2xl font-semibold">{value}</p>
+          {hint ? (
+            <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </CardContent>
+      </Card>
     </Link>
   );
 }
