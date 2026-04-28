@@ -2,6 +2,31 @@ import { z } from "zod";
 import { ContractType } from "@prisma/client";
 
 // =========================================================================
+// Validación de fecha de nacimiento — edad mínima legal para trabajar
+// en Argentina. Frenamos casos absurdos (ej. fecha = hoy o futuro, o un
+// "empleado" de 5 años) tanto en form como en server action.
+// =========================================================================
+
+export const MIN_EMPLOYEE_AGE_YEARS = 16;
+const BIRTH_DATE_TOO_RECENT = `El empleado debe tener al menos ${MIN_EMPLOYEE_AGE_YEARS} años.`;
+
+/** YYYY-MM-DD máximo aceptable como fecha de nacimiento (= hoy − 16 años). */
+export function getMaxBirthDateString(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_EMPLOYEE_AGE_YEARS);
+  return d.toISOString().slice(0, 10);
+}
+
+const isBirthDateOk = (d: Date | null | undefined): boolean => {
+  if (!d) return true;
+  return d.toISOString().slice(0, 10) <= getMaxBirthDateString();
+};
+const isBirthDateStringOk = (v: string | undefined): boolean => {
+  if (!v || v === "") return true;
+  return v <= getMaxBirthDateString();
+};
+
+// =========================================================================
 // Server-side schema (lo usa la server action).
 // Acá sí coercemos tipos porque los datos llegan desde el cliente ya parseados.
 // =========================================================================
@@ -9,6 +34,15 @@ import { ContractType } from "@prisma/client";
 const optionalString = z.string().trim().nullable().optional();
 const optionalDate = z.coerce.date().nullable().optional();
 const optionalNumber = z.number().positive("Debe ser mayor a 0").nullable().optional();
+const optionalBirthDate = z.coerce
+  .date()
+  .nullable()
+  .optional()
+  .refine(isBirthDateOk, { message: BIRTH_DATE_TOO_RECENT });
+const optionalBirthDateString = z
+  .string()
+  .optional()
+  .refine(isBirthDateStringOk, { message: BIRTH_DATE_TOO_RECENT });
 
 export const employeeCreateSchema = z.object({
   firstName: z.string().trim().min(1, "Requerido").max(100),
@@ -17,7 +51,7 @@ export const employeeCreateSchema = z.object({
 
   dni: optionalString,
   phone: optionalString,
-  birthDate: optionalDate,
+  birthDate: optionalBirthDate,
   address: optionalString,
 
   positionId: optionalString,
@@ -46,7 +80,7 @@ export const employeeFormSchema = z.object({
 
   dni: z.string().optional(),
   phone: z.string().optional(),
-  birthDate: z.string().optional(),
+  birthDate: optionalBirthDateString,
   address: z.string().optional(),
 
   positionId: z.string().optional(),
@@ -133,7 +167,7 @@ export const profileSelfFormSchema = z.object({
   firstName: z.string().trim().min(1, "Requerido").max(100),
   lastName: z.string().trim().min(1, "Requerido").max(100),
   phone: z.string().optional(),
-  birthDate: z.string().optional(),
+  birthDate: optionalBirthDateString,
   address: z.string().optional(),
 });
 
@@ -143,7 +177,7 @@ export const profileSelfUpdateSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   phone: optionalString,
-  birthDate: optionalDate,
+  birthDate: optionalBirthDate,
   address: optionalString,
 });
 

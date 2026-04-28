@@ -30,6 +30,7 @@ import {
   type EmployeeFormInput,
   formToCreateInput,
   CONTRACT_TYPE_LABEL,
+  getMaxBirthDateString,
 } from "@/lib/validations/employee";
 import {
   createEmployee,
@@ -137,7 +138,7 @@ export function EmployeeForm({
           <Input {...register("phone")} />
         </Field>
         <Field label="Fecha de nacimiento" error={errors.birthDate?.message}>
-          <Input type="date" {...register("birthDate")} />
+          <Input type="date" max={getMaxBirthDateString()} {...register("birthDate")} />
         </Field>
         <Field label="Dirección" error={errors.address?.message} wide>
           <Textarea rows={2} {...register("address")} />

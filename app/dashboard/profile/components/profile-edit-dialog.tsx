@@ -22,6 +22,7 @@ import {
   profileSelfFormSchema,
   type ProfileSelfFormInput,
   profileFormToUpdate,
+  getMaxBirthDateString,
 } from "@/lib/validations/employee";
 import { updateSelfProfile } from "../actions";
 
@@ -92,7 +93,7 @@ export function ProfileEditDialog({
               <Input {...register("phone")} />
             </Field>
             <Field label="Fecha de nacimiento" error={errors.birthDate?.message}>
-              <Input type="date" {...register("birthDate")} />
+              <Input type="date" max={getMaxBirthDateString()} {...register("birthDate")} />
             </Field>
             <Field label="Dirección" error={errors.address?.message}>
               <Textarea rows={2} {...register("address")} />
