@@ -159,3 +159,106 @@ export async function createPosition(title: string): Promise<{ id: string; title
   revalidatePath("/dashboard/employees");
   return pos;
 }
+
+// =========================================================================
+// Department + Position — gestión completa desde /dashboard/settings
+// =========================================================================
+
+export async function updateDepartment(id: string, name: string): Promise<void> {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin", "hr"]);
+
+  const cleaned = name.trim();
+  if (cleaned.length === 0) throw new Error("El nombre no puede estar vacío.");
+  if (cleaned.length > 80) throw new Error("Máximo 80 caracteres.");
+
+  const existing = await prisma.department.findFirst({
+    where: { id, organizationId: ctx.organizationId },
+    select: { id: true },
+  });
+  if (!existing) throw new Error("Departamento no encontrado.");
+
+  // Si ya existe otro departamento con ese nombre en la misma org → conflicto.
+  const clash = await prisma.department.findUnique({
+    where: { organizationId_name: { organizationId: ctx.organizationId, name: cleaned } },
+    select: { id: true },
+  });
+  if (clash && clash.id !== id) {
+    throw new Error(`Ya existe un departamento llamado "${cleaned}".`);
+  }
+
+  await prisma.department.update({ where: { id }, data: { name: cleaned } });
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}
+
+export async function deleteDepartment(id: string): Promise<void> {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin", "hr"]);
+
+  const dep = await prisma.department.findFirst({
+    where: { id, organizationId: ctx.organizationId },
+    select: { id: true, name: true, _count: { select: { employees: true } } },
+  });
+  if (!dep) throw new Error("Departamento no encontrado.");
+
+  // Bloquear si hay empleados asignados — el usuario debe reasignarlos primero
+  // (de lo contrario quedarían "huérfanos" con departmentId apuntando a nada).
+  if (dep._count.employees > 0) {
+    throw new Error(
+      `No podés eliminar "${dep.name}" porque tiene ${dep._count.employees} empleado(s) asignado(s). Reasignalos primero.`
+    );
+  }
+
+  await prisma.department.delete({ where: { id } });
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}
+
+export async function updatePosition(id: string, title: string): Promise<void> {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin", "hr"]);
+
+  const cleaned = title.trim();
+  if (cleaned.length === 0) throw new Error("El nombre no puede estar vacío.");
+  if (cleaned.length > 80) throw new Error("Máximo 80 caracteres.");
+
+  const existing = await prisma.position.findFirst({
+    where: { id, organizationId: ctx.organizationId },
+    select: { id: true },
+  });
+  if (!existing) throw new Error("Puesto no encontrado.");
+
+  const clash = await prisma.position.findUnique({
+    where: { organizationId_title: { organizationId: ctx.organizationId, title: cleaned } },
+    select: { id: true },
+  });
+  if (clash && clash.id !== id) {
+    throw new Error(`Ya existe un puesto llamado "${cleaned}".`);
+  }
+
+  await prisma.position.update({ where: { id }, data: { title: cleaned } });
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}
+
+export async function deletePosition(id: string): Promise<void> {
+  const ctx = await getOrgContext();
+  requireRole(ctx, ["admin", "hr"]);
+
+  const pos = await prisma.position.findFirst({
+    where: { id, organizationId: ctx.organizationId },
+    select: { id: true, title: true, _count: { select: { employees: true } } },
+  });
+  if (!pos) throw new Error("Puesto no encontrado.");
+
+  if (pos._count.employees > 0) {
+    throw new Error(
+      `No podés eliminar "${pos.title}" porque tiene ${pos._count.employees} empleado(s) asignado(s). Reasignalos primero.`
+    );
+  }
+
+  await prisma.position.delete({ where: { id } });
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}

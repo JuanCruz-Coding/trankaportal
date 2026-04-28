@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
 import { PlanChanger } from "./components/plan-changer";
+import { OrgStructureSection } from "./components/org-structure";
 import { updateOrgSettings } from "./actions";
 
 export default async function SettingsPage() {
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
     throw err;
   }
 
-  const [org, allPlans] = await Promise.all([
+  const [org, allPlans, departments, positions] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: ctx.organizationId },
       include: {
@@ -38,6 +39,24 @@ export default async function SettingsPage() {
       where: { isActive: true },
       include: { features: { include: { feature: true } } },
       orderBy: { maxEmployees: "asc" },
+    }),
+    prisma.department.findMany({
+      where: { organizationId: ctx.organizationId },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { employees: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.position.findMany({
+      where: { organizationId: ctx.organizationId },
+      select: {
+        id: true,
+        title: true,
+        _count: { select: { employees: true } },
+      },
+      orderBy: { title: "asc" },
     }),
   ]);
 
@@ -146,6 +165,28 @@ export default async function SettingsPage() {
             <em>Manage organization</em>.
           </p>
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Estructura organizacional</h2>
+          <p className="text-sm text-muted-foreground">
+            Departamentos y puestos disponibles para asignar a empleados. Se
+            pueden crear, renombrar o eliminar (si no tienen empleados asignados).
+          </p>
+        </div>
+        <OrgStructureSection
+          departments={departments.map((d) => ({
+            id: d.id,
+            label: d.name,
+            count: d._count.employees,
+          }))}
+          positions={positions.map((p) => ({
+            id: p.id,
+            label: p.title,
+            count: p._count.employees,
+          }))}
+        />
       </section>
     </div>
   );
