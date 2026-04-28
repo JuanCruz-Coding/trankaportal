@@ -288,8 +288,14 @@ function SelectField({
           value={field.value ? field.value : UNASSIGNED}
           onValueChange={(v) => field.onChange(v === UNASSIGNED ? "" : v)}
         >
-          <SelectTrigger>
-            <SelectValue placeholder={placeholder} />
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={placeholder}>
+              {(v: string) => {
+                if (!v || v === UNASSIGNED) return placeholder;
+                const opt = options.find((o) => o.id === v);
+                return opt ? opt.label : v;
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={UNASSIGNED}>{placeholder}</SelectItem>
@@ -349,7 +355,7 @@ function CreatableSelectField({
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <div className="flex-1">
           <SelectField
             control={control}
@@ -361,7 +367,7 @@ function CreatableSelectField({
         <Button
           type="button"
           variant="outline"
-          size="icon-sm"
+          size="icon-lg"
           aria-label={dialogTitle}
           onClick={() => setOpen(true)}
         >
