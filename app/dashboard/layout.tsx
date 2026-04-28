@@ -32,9 +32,11 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar role={ctx.role} features={features} />
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col bg-[var(--color-surface)]">
         <AppHeader role={ctx.role} features={features} />
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto w-full max-w-7xl">{children}</div>
+        </main>
       </div>
     </div>
   );
