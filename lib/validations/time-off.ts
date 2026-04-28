@@ -79,10 +79,10 @@ export const STATUS_LABEL: Record<TimeOffRequestStatus, string> = {
 
 export const STATUS_VARIANT: Record<
   TimeOffRequestStatus,
-  "default" | "secondary" | "outline" | "destructive"
+  "secondary" | "success" | "warning" | "destructive"
 > = {
-  PENDING: "outline",
-  APPROVED: "default",
+  PENDING: "warning",
+  APPROVED: "success",
   REJECTED: "destructive",
   CANCELLED: "secondary",
 };
