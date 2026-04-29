@@ -4,6 +4,7 @@ import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { getCurrentEmployeeId, getOrgContext } from "@/lib/tenant";
+import { getOrgTimeOffTypes } from "@/lib/cached-queries";
 import { RequestDialog } from "./components/request-dialog";
 import {
   MyRequestsTable,
@@ -33,11 +34,7 @@ export default async function TimeOffPage() {
 
   // 4 queries en paralelo (antes secuenciales).
   const [types, myRequests, toReview, balance] = await Promise.all([
-    prisma.timeOffType.findMany({
-      where: { organizationId: ctx.organizationId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, affectsBalance: true },
-    }),
+    getOrgTimeOffTypes(ctx.organizationId),
     myEmpId
       ? prisma.timeOffRequest.findMany({
           where: { employeeId: myEmpId, organizationId: ctx.organizationId },
@@ -60,6 +57,10 @@ export default async function TimeOffPage() {
       ? prisma.timeOffRequest.findMany({
           where: reviewWhere,
           orderBy: [{ createdAt: "asc" }],
+          // Guard contra explosión: una org con muchos pendientes no debe
+          // colapsar la página. Si llegan a más de 100 pendientes hace falta
+          // paginación visible.
+          take: 100,
           select: {
             id: true,
             startDate: true,

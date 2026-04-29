@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
+import { getPlansCatalog } from "@/lib/cached-queries";
 import { PlanChanger } from "./components/plan-changer";
 import { OrgStructureSection } from "./components/org-structure";
 import { updateOrgSettings } from "./actions";
@@ -35,11 +36,7 @@ export default async function SettingsPage() {
         },
       },
     }),
-    prisma.plan.findMany({
-      where: { isActive: true },
-      include: { features: { include: { feature: true } } },
-      orderBy: { maxEmployees: "asc" },
-    }),
+    getPlansCatalog(),
     prisma.department.findMany({
       where: { organizationId: ctx.organizationId },
       select: {

@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
 import { getOrgFeatures } from "@/lib/features";
+import { getOrgDepartments, getOrgPositions } from "@/lib/cached-queries";
 import { createInputToForm } from "@/lib/validations/employee";
 import { EmployeeForm } from "../../components/employee-form";
 
@@ -35,16 +36,8 @@ export default async function EmployeeEditPage({
     prisma.employee.findFirst({
       where: { id, organizationId: ctx.organizationId },
     }),
-    prisma.department.findMany({
-      where: { organizationId: ctx.organizationId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.position.findMany({
-      where: { organizationId: ctx.organizationId },
-      orderBy: { title: "asc" },
-      select: { id: true, title: true },
-    }),
+    getOrgDepartments(ctx.organizationId),
+    getOrgPositions(ctx.organizationId),
     prisma.employee.findMany({
       where: {
         organizationId: ctx.organizationId,

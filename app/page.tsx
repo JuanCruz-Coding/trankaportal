@@ -13,7 +13,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
-import { prisma } from "@/lib/prisma";
+import { getPlansCatalog } from "@/lib/cached-queries";
 
 // =========================================================================
 // Datos hardcodeados de la landing — precios y descripciones por plan key.
@@ -94,11 +94,7 @@ export default async function Home({
   const needsOrg = params.need === "org";
   const syncError = params.error === "sync";
 
-  const plans = await prisma.plan.findMany({
-    where: { isActive: true },
-    include: { features: { include: { feature: true } } },
-    orderBy: { maxEmployees: { sort: "asc", nulls: "last" } },
-  });
+  const plans = await getPlansCatalog();
 
   return (
     <div className="min-h-screen bg-background">

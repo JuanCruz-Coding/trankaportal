@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
 import { getOrgFeatures } from "@/lib/features";
+import { getOrgDepartments, getOrgPositions } from "@/lib/cached-queries";
 import { EmployeeForm } from "../components/employee-form";
 
 export default async function NewEmployeePage() {
@@ -25,16 +26,8 @@ export default async function NewEmployeePage() {
   };
 
   const [departments, positions, managers] = await Promise.all([
-    prisma.department.findMany({
-      where: { organizationId: ctx.organizationId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.position.findMany({
-      where: { organizationId: ctx.organizationId },
-      orderBy: { title: "asc" },
-      select: { id: true, title: true },
-    }),
+    getOrgDepartments(ctx.organizationId),
+    getOrgPositions(ctx.organizationId),
     prisma.employee.findMany({
       where: { organizationId: ctx.organizationId, isActive: true },
       orderBy: [{ firstName: "asc" }],

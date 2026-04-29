@@ -31,8 +31,14 @@ import {
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; status?: "active" | "inactive" | "all" }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: "active" | "inactive" | "all";
+    showAll?: string;
+  }>;
 };
+
+const DEFAULT_TAKE = 100;
 
 export default async function EmployeesPage({ searchParams }: PageProps) {
   const ctx = await getOrgContext();
@@ -47,6 +53,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = (params.q ?? "").trim();
   const status = params.status ?? "active";
+  const showAll = params.showAll === "1";
 
   // Manager solo ve a sus subordinados directos + su propia ficha.
   let managerScopeIds: string[] | null = null;
@@ -71,6 +78,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
         role={ctx.role}
         q={q}
         status={status}
+        showAll={showAll}
         managerScopeIds={managerScopeIds}
       />
     </FeatureGate>
@@ -82,12 +90,14 @@ async function EmployeesContent({
   role,
   q,
   status,
+  showAll,
   managerScopeIds,
 }: {
   orgId: string;
   role: OrgRole;
   q: string;
   status: "active" | "inactive" | "all";
+  showAll: boolean;
   managerScopeIds: string[] | null;
 }) {
   const where = {
@@ -112,16 +122,26 @@ async function EmployeesContent({
     ...(managerScopeIds !== null ? { id: { in: managerScopeIds } } : {}),
   };
 
-  const [employees, totalActive] = await Promise.all([
+  const [employees, totalActive, totalFiltered] = await Promise.all([
     prisma.employee.findMany({
       where,
       orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
-      include: {
+      // Sólo los campos que la tabla muestra. `include` traía todo (salary,
+      // address, dni, etc.) — overhead de transferencia y serialización.
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        isActive: true,
+        contractType: true,
         department: { select: { name: true } },
         position: { select: { title: true } },
       },
+      ...(showAll ? {} : { take: DEFAULT_TAKE }),
     }),
     prisma.employee.count({ where: activeWhere }),
+    prisma.employee.count({ where }),
   ]);
 
   const scopeLabel =
@@ -240,6 +260,50 @@ async function EmployeesContent({
           </TableBody>
         </Table>
       </div>
+
+      {!showAll && totalFiltered > DEFAULT_TAKE ? (
+        <div className="flex items-center justify-between text-sm">
+          <p className="text-muted-foreground">
+            Mostrando {employees.length} de {totalFiltered}.
+          </p>
+          <Link
+            href={buildHref({ q, status, showAll: true })}
+            className="text-primary hover:underline"
+          >
+            Ver todos
+          </Link>
+        </div>
+      ) : null}
+      {showAll && totalFiltered > DEFAULT_TAKE ? (
+        <div className="flex items-center justify-between text-sm">
+          <p className="text-muted-foreground">
+            Mostrando los {totalFiltered}.
+          </p>
+          <Link
+            href={buildHref({ q, status, showAll: false })}
+            className="text-primary hover:underline"
+          >
+            Volver al listado corto
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function buildHref({
+  q,
+  status,
+  showAll,
+}: {
+  q: string;
+  status: "active" | "inactive" | "all";
+  showAll: boolean;
+}): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status !== "active") params.set("status", status);
+  if (showAll) params.set("showAll", "1");
+  const qs = params.toString();
+  return qs ? `/dashboard/employees?${qs}` : "/dashboard/employees";
 }
