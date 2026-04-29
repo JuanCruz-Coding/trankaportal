@@ -61,7 +61,7 @@ export default async function TimeOffCalendarPage({ searchParams }: Props) {
   )}`;
 
   return (
-    <FeatureGate feature="time-off">
+    <FeatureGate feature="time-off.calendar">
       <div className="space-y-6">
         <header className="flex flex-wrap items-center gap-3">
           <Link

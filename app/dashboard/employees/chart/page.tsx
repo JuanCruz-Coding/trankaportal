@@ -72,7 +72,7 @@ export default async function OrgChartPage() {
   }
 
   return (
-    <FeatureGate feature="employees">
+    <FeatureGate feature="employees.org-chart-visual">
       <div className="space-y-6">
         <header className="flex items-center gap-3">
           <Link

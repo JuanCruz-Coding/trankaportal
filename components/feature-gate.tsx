@@ -5,10 +5,48 @@ import { getOrgContext } from "@/lib/tenant";
 import { hasFeature, type FeatureKey } from "@/lib/features";
 
 const FEATURE_LABEL: Record<FeatureKey, string> = {
+  // Empleados
   employees: "Gestión de empleados",
+  "employees.documents": "Documentos por empleado",
+  "employees.compensation": "Compensación y contrato",
+  "employees.org-chart": "Organigrama",
+  "employees.org-chart-visual": "Organigrama visual",
+  "employees.csv-export": "Export / import masivo",
+  "employees.custom-fields": "Campos personalizados",
+  "employees.audit-log": "Historial de cambios",
+  // Portal del empleado
   "self-service": "Portal del empleado",
+  "self-service.documents": "Documentos propios",
+  "self-service.time-off": "Solicitar ausencias",
+  "self-service.attendance-view": "Ver asistencia propia",
+  "self-service.payroll-signature": "Firma digital de recibos",
+  // Time-off
   "time-off": "Ausencias y vacaciones",
+  "time-off.calendar": "Calendario de equipo",
+  "time-off.multi-approval": "Aprobación multi-nivel",
+  "time-off.carry-over": "Carry-over de días",
+  "time-off.holidays": "Feriados configurables",
+  // Attendance
   attendance: "Control de asistencia",
+  "attendance.team-view": "Vista de equipo",
+  "attendance.shifts": "Turnos y horarios",
+  "attendance.geo": "Geolocalización",
+  "attendance.ip-whitelist": "Restricción por IP",
+  "attendance.overtime-approval": "Aprobación de horas extras",
+  "attendance.export": "Export Excel",
+  // Comunicación
+  "email-notifications": "Notificaciones por email",
+  announcements: "Anuncios internos",
+  // Recibos
+  payroll: "Recibos de sueldo",
+  // Reportes
+  "reports.basic": "Reportes básicos",
+  "reports.advanced": "Analytics avanzado",
+  // Procesos
+  onboarding: "Onboarding / Offboarding",
+  "performance-reviews": "Evaluaciones de desempeño",
+  // Integraciones
+  integrations: "Integraciones",
 };
 
 /**

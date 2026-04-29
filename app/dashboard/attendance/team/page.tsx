@@ -93,7 +93,7 @@ export default async function TeamReportPage({ searchParams }: Props) {
   const nextUrl = `/dashboard/attendance/team?m=${monthKey(active.year, active.month + 1)}`;
 
   return (
-    <FeatureGate feature="attendance">
+    <FeatureGate feature="attendance.team-view">
       <div className="space-y-6">
         <header className="flex flex-wrap items-center gap-3">
           <Link

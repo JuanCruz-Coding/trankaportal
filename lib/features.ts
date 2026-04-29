@@ -1,14 +1,62 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
-export type FeatureKey = "employees" | "self-service" | "time-off" | "attendance";
+export type FeatureKey =
+  // Empleados
+  | "employees"
+  | "employees.documents"
+  | "employees.compensation"
+  | "employees.org-chart"
+  | "employees.org-chart-visual"
+  | "employees.csv-export"
+  | "employees.custom-fields"
+  | "employees.audit-log"
+  // Portal del empleado
+  | "self-service"
+  | "self-service.documents"
+  | "self-service.time-off"
+  | "self-service.attendance-view"
+  | "self-service.payroll-signature"
+  // Time-off
+  | "time-off"
+  | "time-off.calendar"
+  | "time-off.multi-approval"
+  | "time-off.carry-over"
+  | "time-off.holidays"
+  // Attendance
+  | "attendance"
+  | "attendance.team-view"
+  | "attendance.shifts"
+  | "attendance.geo"
+  | "attendance.ip-whitelist"
+  | "attendance.overtime-approval"
+  | "attendance.export"
+  // Comunicación
+  | "email-notifications"
+  | "announcements"
+  // Recibos
+  | "payroll"
+  // Reportes
+  | "reports.basic"
+  | "reports.advanced"
+  // Procesos
+  | "onboarding"
+  | "performance-reviews"
+  // Integraciones
+  | "integrations";
 
-export const FEATURE_KEYS: FeatureKey[] = [
+/**
+ * Feature keys "raíz" — las que gatean el módulo completo (página principal del
+ * módulo). Útil para el sidebar/nav que sólo necesita saber si mostrar el link.
+ */
+export const ROOT_FEATURE_KEYS = [
   "employees",
   "self-service",
   "time-off",
   "attendance",
-];
+] as const satisfies readonly FeatureKey[];
+
+export type RootFeatureKey = (typeof ROOT_FEATURE_KEYS)[number];
 
 /**
  * Tag para invalidar la caché de features de una org. Usar:
