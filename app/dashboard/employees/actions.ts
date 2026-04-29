@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { EmployeeRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
 import { getOrgFeatures } from "@/lib/features";
+import { orgActiveEmployeeCountCacheTag } from "@/lib/cached-queries";
 import {
   employeeCreateSchema,
   employeeUpdateSchema,
@@ -62,6 +63,7 @@ export async function createEmployee(input: EmployeeCreateInput) {
     },
   });
 
+  revalidateTag(orgActiveEmployeeCountCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/employees");
   return employee;
 }
@@ -99,6 +101,7 @@ export async function setEmployeeActive(id: string, isActive: boolean) {
 
   await prisma.employee.update({ where: { id }, data: { isActive } });
 
+  revalidateTag(orgActiveEmployeeCountCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/employees");
   revalidatePath(`/dashboard/employees/${id}`);
 }

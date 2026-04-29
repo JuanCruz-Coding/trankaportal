@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
 import { orgFeaturesCacheTag } from "@/lib/features";
+import { orgPlanCacheTag } from "@/lib/cached-queries";
 
 // =========================================================================
 // Cambio de plan
@@ -39,8 +40,10 @@ export async function changePlan(planKey: string) {
     data: { planId: newPlan.id, status: "ACTIVE" },
   });
 
-  // Invalidar caché de features (la sidebar ya muestra/oculta módulos según plan).
+  // Invalidar cachés que dependen del plan: features (sidebar / gating) y
+  // nombre del plan (header del dashboard).
   revalidateTag(orgFeaturesCacheTag(ctx.organizationId), "default");
+  revalidateTag(orgPlanCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/settings");
 }
