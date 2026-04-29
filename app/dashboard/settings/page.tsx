@@ -106,14 +106,12 @@ export default async function SettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   {p.maxEmployees ? `Hasta ${p.maxEmployees} empleados` : "Empleados ilimitados"}
                 </p>
-                <ul className="mt-3 space-y-1 text-xs">
-                  {p.features.map((pf) => (
-                    <li key={pf.featureId} className="flex items-center gap-1.5">
-                      <Check className="h-3 w-3 text-primary" />
-                      {pf.feature.name}
-                    </li>
-                  ))}
-                </ul>
+                <PlanFeatureList
+                  features={p.features.map((pf) => ({
+                    key: pf.feature.key,
+                    name: pf.feature.name,
+                  }))}
+                />
               </div>
             );
           })}
@@ -189,5 +187,59 @@ export default async function SettingsPage() {
         />
       </section>
     </div>
+  );
+}
+
+/**
+ * Agrupa las features de un plan por prefijo de key (`module.subfeature`)
+ * y las renderiza como módulo + sub-features anidadas. Para keys sin punto
+ * que igual pertenecen a una "categoría" mayor (payroll, announcements,
+ * reports.*) las metemos en buckets explícitos.
+ *
+ * El orden de GROUPS define el orden de render.
+ */
+const GROUPS: Array<{ id: string; label: string; matches: (key: string) => boolean }> = [
+  { id: "employees", label: "Empleados", matches: (k) => k === "employees" || k.startsWith("employees.") },
+  { id: "self-service", label: "Portal del empleado", matches: (k) => k === "self-service" || k.startsWith("self-service.") },
+  { id: "time-off", label: "Ausencias y vacaciones", matches: (k) => k === "time-off" || k.startsWith("time-off.") },
+  { id: "attendance", label: "Control de asistencia", matches: (k) => k === "attendance" || k.startsWith("attendance.") },
+  { id: "comms", label: "Comunicación", matches: (k) => k === "email-notifications" || k === "announcements" },
+  { id: "payroll", label: "Recibos de sueldo", matches: (k) => k === "payroll" },
+  { id: "reports", label: "Reportes", matches: (k) => k.startsWith("reports.") },
+  { id: "processes", label: "Procesos", matches: (k) => k === "onboarding" || k === "performance-reviews" },
+  { id: "integrations", label: "Integraciones", matches: (k) => k === "integrations" },
+];
+
+function PlanFeatureList({ features }: { features: Array<{ key: string; name: string }> }) {
+  const grouped = GROUPS.map((g) => ({
+    ...g,
+    items: features.filter((f) => g.matches(f.key)),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <ul className="mt-3 space-y-2 text-xs">
+      {grouped.map((g) => {
+        // Si hay raíz (key sin "."), va como header con check; las sub-features
+        // (key con ".") quedan indentadas. Si no hay raíz (ej. "Reportes" sin
+        // un "reports" raíz, sólo "reports.basic"), mostramos el label del grupo.
+        const root = g.items.find((f) => !f.key.includes("."));
+        const subs = g.items.filter((f) => f.key.includes("."));
+        return (
+          <li key={g.id}>
+            <div className="flex items-center gap-1.5 font-medium">
+              <Check className="h-3 w-3 text-primary" />
+              {root ? root.name : g.label}
+            </div>
+            {subs.length > 0 ? (
+              <ul className="ml-4 mt-1 space-y-0.5 text-muted-foreground">
+                {subs.map((f) => (
+                  <li key={f.key}>· {f.name}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
