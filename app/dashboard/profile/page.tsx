@@ -2,6 +2,7 @@ import { FeatureGate } from "@/components/feature-gate";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
 import { getCurrentEmployeeId, getOrgContext } from "@/lib/tenant";
+import { hasFeature } from "@/lib/features";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 import { DocumentsSection } from "../employees/components/documents-section";
 import { ProfileEditDialog } from "./components/profile-edit-dialog";
@@ -9,6 +10,7 @@ import { ProfileEditDialog } from "./components/profile-edit-dialog";
 export default async function ProfilePage() {
   const ctx = await getOrgContext();
   const myEmpId = await getCurrentEmployeeId();
+  const canViewOwnDocs = await hasFeature(ctx.organizationId, "self-service.documents");
 
   // Edge case: user autenticado en Clerk pero sin Employee row sincronizado.
   // Puede pasar si el webhook falló o si está en ese milisegundo después de
@@ -122,11 +124,13 @@ export default async function ProfilePage() {
             </p>
           </DataCard>
 
-          <DocumentsSection
-            employeeId={employee.id}
-            documents={employee.documents}
-            canManage={false}
-          />
+          {canViewOwnDocs ? (
+            <DocumentsSection
+              employeeId={employee.id}
+              documents={employee.documents}
+              canManage={false}
+            />
+          ) : null}
         </div>
       </div>
     </FeatureGate>

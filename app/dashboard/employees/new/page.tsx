@@ -5,6 +5,7 @@ import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
+import { getOrgFeatures } from "@/lib/features";
 import { EmployeeForm } from "../components/employee-form";
 
 export default async function NewEmployeePage() {
@@ -16,6 +17,12 @@ export default async function NewEmployeePage() {
     if (err instanceof ForbiddenError) redirect("/dashboard/employees");
     throw err;
   }
+
+  const features = await getOrgFeatures(ctx.organizationId);
+  const capabilities = {
+    compensation: features.has("employees.compensation"),
+    orgChart: features.has("employees.org-chart"),
+  };
 
   const [departments, positions, managers] = await Promise.all([
     prisma.department.findMany({
@@ -64,6 +71,7 @@ export default async function NewEmployeePage() {
               id: m.id,
               label: `${m.firstName} ${m.lastName}`,
             }))}
+            capabilities={capabilities}
           />
         </div>
       </div>

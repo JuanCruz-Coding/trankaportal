@@ -48,6 +48,15 @@ type Props = {
   departments: SelectOption[];
   positions: SelectOption[];
   managers: SelectOption[];
+  /**
+   * Sub-features del módulo Empleados según el plan. Si una capability está en
+   * false, el campo asociado no se renderiza. Las server actions también
+   * sanitizan por su cuenta — esto es UX, no autorización.
+   */
+  capabilities: {
+    compensation: boolean; // tipo de contrato + salario
+    orgChart: boolean; // manager
+  };
 };
 
 const UNASSIGNED = "__unassigned__";
@@ -59,6 +68,7 @@ export function EmployeeForm({
   departments: initialDepartments,
   positions: initialPositions,
   managers,
+  capabilities,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -176,28 +186,34 @@ export function EmployeeForm({
             }}
           />
         </Field>
-        <Field label="Manager" error={errors.managerId?.message}>
-          <SelectField
-            control={control}
-            name="managerId"
-            options={managers}
-            placeholder="Sin asignar"
-          />
-        </Field>
+        {capabilities.orgChart ? (
+          <Field label="Manager" error={errors.managerId?.message}>
+            <SelectField
+              control={control}
+              name="managerId"
+              options={managers}
+              placeholder="Sin asignar"
+            />
+          </Field>
+        ) : null}
         <Field label="Fecha de ingreso" error={errors.hireDate?.message}>
           <Input type="date" {...register("hireDate")} />
         </Field>
-        <Field label="Tipo de contrato" error={errors.contractType?.message}>
-          <SelectField
-            control={control}
-            name="contractType"
-            options={contractOptions}
-            placeholder="Sin asignar"
-          />
-        </Field>
-        <Field label="Salario" error={errors.salary?.message} hint="Neto mensual">
-          <Input type="number" step="0.01" min="0" {...register("salary")} />
-        </Field>
+        {capabilities.compensation ? (
+          <>
+            <Field label="Tipo de contrato" error={errors.contractType?.message}>
+              <SelectField
+                control={control}
+                name="contractType"
+                options={contractOptions}
+                placeholder="Sin asignar"
+              />
+            </Field>
+            <Field label="Salario" error={errors.salary?.message} hint="Neto mensual">
+              <Input type="number" step="0.01" min="0" {...register("salary")} />
+            </Field>
+          </>
+        ) : null}
       </Section>
 
       {serverError ? (

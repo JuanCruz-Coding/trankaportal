@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { DocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getOrgContext, requireRole } from "@/lib/tenant";
+import { getCurrentEmployeeId, getOrgContext, requireRole } from "@/lib/tenant";
+import { getOrgFeatures } from "@/lib/features";
 import { DOCUMENTS_BUCKET, supabaseAdmin } from "@/lib/supabase";
 import { createNotifications } from "@/lib/notifications";
 
@@ -31,6 +32,11 @@ function safeFilename(name: string): string {
 export async function uploadEmployeeDocument(formData: FormData) {
   const ctx = await getOrgContext();
   requireRole(ctx, ["admin", "hr"]);
+
+  const features = await getOrgFeatures(ctx.organizationId);
+  if (!features.has("employees.documents")) {
+    throw new Error("La gestión de documentos no está disponible en tu plan.");
+  }
 
   const employeeId = formData.get("employeeId");
   const file = formData.get("file");
@@ -118,6 +124,11 @@ export async function deleteEmployeeDocument(docId: string) {
   const ctx = await getOrgContext();
   requireRole(ctx, ["admin", "hr"]);
 
+  const features = await getOrgFeatures(ctx.organizationId);
+  if (!features.has("employees.documents")) {
+    throw new Error("La gestión de documentos no está disponible en tu plan.");
+  }
+
   const doc = await prisma.document.findFirst({
     where: { id: docId, organizationId: ctx.organizationId },
     select: { id: true, storagePath: true, employeeId: true },
@@ -134,16 +145,28 @@ export async function deleteEmployeeDocument(docId: string) {
 /**
  * Genera una signed URL temporal para descargar el documento.
  * Dura 60 segundos — suficiente para que el browser inicie la descarga.
- * Cualquier usuario de la misma org puede descargar.
+ * Cualquier usuario de la misma org puede descargar — pero el plan tiene
+ * que habilitar la feature: `employees.documents` para docs de otros,
+ * `self-service.documents` (o `employees.documents`) para los propios.
  */
 export async function getEmployeeDocumentUrl(docId: string): Promise<string> {
   const ctx = await getOrgContext();
 
   const doc = await prisma.document.findFirst({
     where: { id: docId, organizationId: ctx.organizationId },
-    select: { storagePath: true },
+    select: { storagePath: true, employeeId: true },
   });
   if (!doc) throw new Error("Documento no encontrado.");
+
+  const features = await getOrgFeatures(ctx.organizationId);
+  const myEmpId = await getCurrentEmployeeId();
+  const isOwnDoc = myEmpId !== null && myEmpId === doc.employeeId;
+  const allowed = isOwnDoc
+    ? features.has("self-service.documents") || features.has("employees.documents")
+    : features.has("employees.documents");
+  if (!allowed) {
+    throw new Error("La gestión de documentos no está disponible en tu plan.");
+  }
 
   const sb = supabaseAdmin();
   const { data, error } = await sb.storage

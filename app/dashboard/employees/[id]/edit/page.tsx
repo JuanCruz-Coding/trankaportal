@@ -5,6 +5,7 @@ import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
+import { getOrgFeatures } from "@/lib/features";
 import { createInputToForm } from "@/lib/validations/employee";
 import { EmployeeForm } from "../../components/employee-form";
 
@@ -23,6 +24,12 @@ export default async function EmployeeEditPage({
   }
 
   const { id } = await params;
+
+  const features = await getOrgFeatures(ctx.organizationId);
+  const capabilities = {
+    compensation: features.has("employees.compensation"),
+    orgChart: features.has("employees.org-chart"),
+  };
 
   const [employee, departments, positions, managers] = await Promise.all([
     prisma.employee.findFirst({
@@ -86,6 +93,7 @@ export default async function EmployeeEditPage({
               id: m.id,
               label: `${m.firstName} ${m.lastName}`,
             }))}
+            capabilities={capabilities}
           />
         </div>
       </div>

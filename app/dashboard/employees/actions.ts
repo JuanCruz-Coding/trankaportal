@@ -5,6 +5,7 @@ import { EmployeeRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
+import { getOrgFeatures } from "@/lib/features";
 import {
   employeeCreateSchema,
   employeeUpdateSchema,
@@ -12,16 +13,42 @@ import {
   type EmployeeUpdateInput,
 } from "@/lib/validations/employee";
 
+/**
+ * Defensa en profundidad: aunque el form omite los campos según capabilities,
+ * un cliente malicioso o desactualizado podría mandarlos igual. Acá los
+ * descartamos silenciosamente si el plan no tiene la feature correspondiente.
+ *
+ * Descartamos en lugar de tirar error — la operación principal (crear/editar
+ * el empleado) debe seguir funcionando aunque venga ruido en campos no
+ * autorizados.
+ */
+async function stripGatedEmployeeFields<T extends Partial<EmployeeCreateInput>>(
+  organizationId: string,
+  data: T
+): Promise<T> {
+  const features = await getOrgFeatures(organizationId);
+  const next = { ...data };
+  if (!features.has("employees.compensation")) {
+    delete next.contractType;
+    delete next.salary;
+  }
+  if (!features.has("employees.org-chart")) {
+    delete next.managerId;
+  }
+  return next;
+}
+
 export async function createEmployee(input: EmployeeCreateInput) {
   const ctx = await getOrgContext();
   requireRole(ctx, ["admin", "hr"]);
 
-  const data = employeeCreateSchema.parse(input);
+  const parsed = employeeCreateSchema.parse(input);
+  const data = await stripGatedEmployeeFields(ctx.organizationId, parsed);
 
   // Validar unicidad de email dentro de la org (el schema también lo enforces via
   // @@unique([organizationId, email]) pero damos un error legible antes del DB error).
   const clash = await prisma.employee.findFirst({
-    where: { organizationId: ctx.organizationId, email: data.email },
+    where: { organizationId: ctx.organizationId, email: data.email! },
     select: { id: true },
   });
   if (clash) {
@@ -31,7 +58,7 @@ export async function createEmployee(input: EmployeeCreateInput) {
   const employee = await prisma.employee.create({
     data: {
       organizationId: ctx.organizationId,
-      ...data,
+      ...(data as EmployeeCreateInput),
     },
   });
 
@@ -43,7 +70,8 @@ export async function updateEmployee(id: string, input: EmployeeUpdateInput) {
   const ctx = await getOrgContext();
   requireRole(ctx, ["admin", "hr"]);
 
-  const data = employeeUpdateSchema.parse(input);
+  const parsed = employeeUpdateSchema.parse(input);
+  const data = await stripGatedEmployeeFields(ctx.organizationId, parsed);
 
   // Verificamos que el empleado pertenece a esta org antes de actualizar.
   // Sin esto, un user de Org A podría editar empleados de Org B si adivina un id.

@@ -11,6 +11,7 @@ import {
   getOrgContext,
   requireRole,
 } from "@/lib/tenant";
+import { getOrgFeatures } from "@/lib/features";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 import { EmployeeActiveToggle } from "../components/employee-active-toggle";
 import { DocumentsSection } from "../components/documents-section";
@@ -89,6 +90,12 @@ export default async function EmployeeDetailPage({
   const canEdit = ctx.role === "admin" || ctx.role === "hr";
   const canChangeRole = ctx.role === "admin";
 
+  // Sub-features del módulo Empleados según plan.
+  const features = await getOrgFeatures(ctx.organizationId);
+  const planHasCompensation = features.has("employees.compensation");
+  const planHasOrgChart = features.has("employees.org-chart");
+  const planHasDocuments = features.has("employees.documents");
+
   return (
     <FeatureGate feature="employees">
       <div className="space-y-6">
@@ -138,30 +145,36 @@ export default async function EmployeeDetailPage({
           <DataCard title="Datos laborales">
             <DataRow label="Puesto" value={employee.position?.title} />
             <DataRow label="Departamento" value={employee.department?.name} />
-            <DataRow
-              label="Manager"
-              value={
-                employee.manager
-                  ? `${employee.manager.firstName} ${employee.manager.lastName}`
-                  : null
-              }
-            />
-            <DataRow label="Fecha de ingreso" value={formatDate(employee.hireDate)} />
-            <DataRow
-              label="Tipo de contrato"
-              value={
-                employee.contractType ? CONTRACT_TYPE_LABEL[employee.contractType] : null
-              }
-            />
-            {canSeeSalary ? (
+            {planHasOrgChart ? (
               <DataRow
-                label="Salario"
+                label="Manager"
                 value={
-                  employee.salary
-                    ? `$ ${Number(employee.salary).toLocaleString("es-AR")}`
+                  employee.manager
+                    ? `${employee.manager.firstName} ${employee.manager.lastName}`
                     : null
                 }
               />
+            ) : null}
+            <DataRow label="Fecha de ingreso" value={formatDate(employee.hireDate)} />
+            {planHasCompensation ? (
+              <>
+                <DataRow
+                  label="Tipo de contrato"
+                  value={
+                    employee.contractType ? CONTRACT_TYPE_LABEL[employee.contractType] : null
+                  }
+                />
+                {canSeeSalary ? (
+                  <DataRow
+                    label="Salario"
+                    value={
+                      employee.salary
+                        ? `$ ${Number(employee.salary).toLocaleString("es-AR")}`
+                        : null
+                    }
+                  />
+                ) : null}
+              </>
             ) : null}
           </DataCard>
 
@@ -192,11 +205,13 @@ export default async function EmployeeDetailPage({
             </DataCard>
           ) : null}
 
-          <DocumentsSection
-            employeeId={employee.id}
-            documents={employee.documents}
-            canManage={canEdit}
-          />
+          {planHasDocuments ? (
+            <DocumentsSection
+              employeeId={employee.id}
+              documents={employee.documents}
+              canManage={canEdit}
+            />
+          ) : null}
         </div>
       </div>
     </FeatureGate>
