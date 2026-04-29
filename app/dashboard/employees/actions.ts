@@ -6,7 +6,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
 import { getOrgFeatures } from "@/lib/features";
-import { orgActiveEmployeeCountCacheTag } from "@/lib/cached-queries";
+import {
+  orgActiveEmployeeCountCacheTag,
+  orgDepartmentsCacheTag,
+  orgPositionsCacheTag,
+} from "@/lib/cached-queries";
 import {
   employeeCreateSchema,
   employeeUpdateSchema,
@@ -165,6 +169,7 @@ export async function createDepartment(name: string): Promise<{ id: string; name
     data: { organizationId: ctx.organizationId, name: cleaned },
     select: { id: true, name: true },
   });
+  revalidateTag(orgDepartmentsCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/employees");
   return dep;
 }
@@ -187,6 +192,7 @@ export async function createPosition(title: string): Promise<{ id: string; title
     data: { organizationId: ctx.organizationId, title: cleaned },
     select: { id: true, title: true },
   });
+  revalidateTag(orgPositionsCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/employees");
   return pos;
 }
@@ -219,6 +225,7 @@ export async function updateDepartment(id: string, name: string): Promise<void> 
   }
 
   await prisma.department.update({ where: { id }, data: { name: cleaned } });
+  revalidateTag(orgDepartmentsCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/employees");
 }
@@ -242,6 +249,7 @@ export async function deleteDepartment(id: string): Promise<void> {
   }
 
   await prisma.department.delete({ where: { id } });
+  revalidateTag(orgDepartmentsCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/employees");
 }
@@ -269,6 +277,7 @@ export async function updatePosition(id: string, title: string): Promise<void> {
   }
 
   await prisma.position.update({ where: { id }, data: { title: cleaned } });
+  revalidateTag(orgPositionsCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/employees");
 }
@@ -290,6 +299,7 @@ export async function deletePosition(id: string): Promise<void> {
   }
 
   await prisma.position.delete({ where: { id } });
+  revalidateTag(orgPositionsCacheTag(ctx.organizationId), "default");
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/employees");
 }
