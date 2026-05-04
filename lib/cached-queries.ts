@@ -21,7 +21,9 @@ const getOrgPlanCached = (orgId: string) =>
     async (id: string) => {
       const sub = await prisma.subscription.findUnique({
         where: { organizationId: id },
-        select: { plan: { select: { name: true, key: true } } },
+        select: {
+          plan: { select: { name: true, key: true, maxEmployees: true } },
+        },
       });
       return sub?.plan ?? null;
     },
@@ -31,7 +33,7 @@ const getOrgPlanCached = (orgId: string) =>
 
 export async function getOrgPlan(
   organizationId: string
-): Promise<{ name: string; key: string } | null> {
+): Promise<{ name: string; key: string; maxEmployees: number | null } | null> {
   return getOrgPlanCached(organizationId);
 }
 

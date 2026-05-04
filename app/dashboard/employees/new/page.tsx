@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
 import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, getOrgContext, requireRole } from "@/lib/tenant";
 import { getOrgFeatures } from "@/lib/features";
-import { getOrgDepartments, getOrgPositions } from "@/lib/cached-queries";
+import {
+  getOrgActiveEmployeeCount,
+  getOrgDepartments,
+  getOrgPlan,
+  getOrgPositions,
+} from "@/lib/cached-queries";
 import { EmployeeForm } from "../components/employee-form";
 
 export default async function NewEmployeePage() {
@@ -25,7 +30,7 @@ export default async function NewEmployeePage() {
     orgChart: features.has("employees.org-chart"),
   };
 
-  const [departments, positions, managers] = await Promise.all([
+  const [departments, positions, managers, plan, activeCount] = await Promise.all([
     getOrgDepartments(ctx.organizationId),
     getOrgPositions(ctx.organizationId),
     prisma.employee.findMany({
@@ -33,7 +38,20 @@ export default async function NewEmployeePage() {
       orderBy: [{ firstName: "asc" }],
       select: { id: true, firstName: true, lastName: true },
     }),
+    getOrgPlan(ctx.organizationId),
+    getOrgActiveEmployeeCount(ctx.organizationId),
   ]);
+
+  // Defensa server-side: si alguien llega a esta URL pero la org está al cap,
+  // mostramos un upgrade CTA en vez del form. La action también valida.
+  const cap = plan?.maxEmployees ?? null;
+  if (cap != null && activeCount >= cap) {
+    return (
+      <FeatureGate feature="employees">
+        <CapReached planName={plan?.name ?? "actual"} cap={cap} />
+      </FeatureGate>
+    );
+  }
 
   return (
     <FeatureGate feature="employees">
@@ -69,5 +87,37 @@ export default async function NewEmployeePage() {
         </div>
       </div>
     </FeatureGate>
+  );
+}
+
+function CapReached({ planName, cap }: { planName: string; cap: number }) {
+  return (
+    <div className="mx-auto flex max-w-lg flex-col items-center gap-4 rounded-lg border bg-card p-10 text-center text-card-foreground shadow-sm">
+      <div className="rounded-full bg-muted p-3">
+        <Lock className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold">Llegaste al límite de tu plan</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          El plan <strong>{planName}</strong> permite hasta <strong>{cap}</strong>{" "}
+          empleados activos. Para sumar más, mejorá tu plan o desactivá empleados
+          que ya no estén en la organización.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Link
+          href="/dashboard/employees"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          Volver al listado
+        </Link>
+        <Link
+          href="/dashboard/settings"
+          className={buttonVariants({ size: "sm" })}
+        >
+          Ver planes
+        </Link>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Network, Plus, Search } from "lucide-react";
+import { Lock, Network, Plus, Search } from "lucide-react";
 import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import {
   requireRole,
   type OrgRole,
 } from "@/lib/tenant";
+import { getOrgPlan } from "@/lib/cached-queries";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 
 type PageProps = {
@@ -122,27 +123,44 @@ async function EmployeesContent({
     ...(managerScopeIds !== null ? { id: { in: managerScopeIds } } : {}),
   };
 
-  const [employees, totalActive, totalFiltered] = await Promise.all([
-    prisma.employee.findMany({
-      where,
-      orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
-      // Sólo los campos que la tabla muestra. `include` traía todo (salary,
-      // address, dni, etc.) — overhead de transferencia y serialización.
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        isActive: true,
-        contractType: true,
-        department: { select: { name: true } },
-        position: { select: { title: true } },
-      },
-      ...(showAll ? {} : { take: DEFAULT_TAKE }),
-    }),
-    prisma.employee.count({ where: activeWhere }),
-    prisma.employee.count({ where }),
-  ]);
+  // Para admin/hr: count global (no acotado al manager scope) — es lo que se
+  // compara contra el cap del plan. Manager no ve esto, pero tampoco crea
+  // empleados así que no necesitamos el global en su scope.
+  const orgWideActiveCountPromise =
+    role === "manager"
+      ? Promise.resolve(0)
+      : prisma.employee.count({
+          where: { organizationId: orgId, isActive: true },
+        });
+
+  const [employees, totalActive, totalFiltered, plan, orgWideActiveCount] =
+    await Promise.all([
+      prisma.employee.findMany({
+        where,
+        orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
+        // Sólo los campos que la tabla muestra. `include` traía todo (salary,
+        // address, dni, etc.) — overhead de transferencia y serialización.
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          isActive: true,
+          contractType: true,
+          department: { select: { name: true } },
+          position: { select: { title: true } },
+        },
+        ...(showAll ? {} : { take: DEFAULT_TAKE }),
+      }),
+      prisma.employee.count({ where: activeWhere }),
+      prisma.employee.count({ where }),
+      getOrgPlan(orgId),
+      orgWideActiveCountPromise,
+    ]);
+
+  const cap = plan?.maxEmployees ?? null;
+  const atCap = cap != null && orgWideActiveCount >= cap;
+  const showCapHint = role !== "manager" && cap != null;
 
   const scopeLabel =
     role === "manager" ? "en tu equipo" : "en la organización";
@@ -153,7 +171,9 @@ async function EmployeesContent({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Empleados</h1>
           <p className="text-sm text-muted-foreground">
-            {totalActive} activo{totalActive === 1 ? "" : "s"} {scopeLabel}.
+            {showCapHint
+              ? `${orgWideActiveCount} / ${cap} empleados activos en tu plan.`
+              : `${totalActive} activo${totalActive === 1 ? "" : "s"} ${scopeLabel}.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -165,13 +185,24 @@ async function EmployeesContent({
             Organigrama
           </Link>
           {role !== "manager" ? (
-            <Link
-              href="/dashboard/employees/new"
-              className={buttonVariants({ size: "sm" })}
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo empleado
-            </Link>
+            atCap ? (
+              <Link
+                href="/dashboard/settings"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+                title={`Llegaste al límite de tu plan (${cap}). Mejorá tu plan para sumar más.`}
+              >
+                <Lock className="h-4 w-4" />
+                Plan al límite — mejorar
+              </Link>
+            ) : (
+              <Link
+                href="/dashboard/employees/new"
+                className={buttonVariants({ size: "sm" })}
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo empleado
+              </Link>
+            )
           ) : null}
         </div>
       </header>

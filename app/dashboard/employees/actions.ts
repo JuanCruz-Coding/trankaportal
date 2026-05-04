@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { getOrgContext, requireRole } from "@/lib/tenant";
 import { getOrgFeatures } from "@/lib/features";
 import {
+  getOrgActiveEmployeeCount,
+  getOrgPlan,
   orgActiveEmployeeCountCacheTag,
   orgDepartmentsCacheTag,
   orgPositionsCacheTag,
@@ -27,6 +29,28 @@ import {
  * el empleado) debe seguir funcionando aunque venga ruido en campos no
  * autorizados.
  */
+/**
+ * Defensa server-side del cap de empleados activos del plan. Lanza un error
+ * legible si la org está al límite — la UI también lo previene, pero esto
+ * cierra la puerta a cualquier cliente desactualizado o pedido directo a
+ * la action.
+ *
+ * El cap es por **empleados activos**: bajas no cuentan, reactivaciones sí
+ * (por eso `setEmployeeActive(true)` también lo invoca).
+ */
+async function assertEmployeeCapNotReached(organizationId: string) {
+  const [plan, count] = await Promise.all([
+    getOrgPlan(organizationId),
+    getOrgActiveEmployeeCount(organizationId),
+  ]);
+  const cap = plan?.maxEmployees;
+  if (cap != null && count >= cap) {
+    throw new Error(
+      `Tu plan ${plan?.name ?? ""} permite hasta ${cap} empleados activos. Mejorá tu plan para sumar más.`
+    );
+  }
+}
+
 async function stripGatedEmployeeFields<T extends Partial<EmployeeCreateInput>>(
   organizationId: string,
   data: T
@@ -46,6 +70,8 @@ async function stripGatedEmployeeFields<T extends Partial<EmployeeCreateInput>>(
 export async function createEmployee(input: EmployeeCreateInput) {
   const ctx = await getOrgContext();
   requireRole(ctx, ["admin", "hr"]);
+
+  await assertEmployeeCapNotReached(ctx.organizationId);
 
   const parsed = employeeCreateSchema.parse(input);
   const data = await stripGatedEmployeeFields(ctx.organizationId, parsed);
@@ -99,9 +125,15 @@ export async function setEmployeeActive(id: string, isActive: boolean) {
 
   const existing = await prisma.employee.findFirst({
     where: { id, organizationId: ctx.organizationId },
-    select: { id: true },
+    select: { id: true, isActive: true },
   });
   if (!existing) throw new Error("Empleado no encontrado.");
+
+  // Reactivar suma al headcount activo → chequeamos el cap. Desactivar siempre
+  // está permitido (libera cupo).
+  if (isActive && !existing.isActive) {
+    await assertEmployeeCapNotReached(ctx.organizationId);
+  }
 
   await prisma.employee.update({ where: { id }, data: { isActive } });
 
