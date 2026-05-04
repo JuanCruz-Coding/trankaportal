@@ -12,11 +12,27 @@ import {
   timeOffRequestCreateSchema,
   type TimeOffRequestCreateInput,
 } from "@/lib/validations/time-off";
-import { sendEmailSafe } from "@/lib/email";
+import { sendEmailSafe, type EmailPayload } from "@/lib/email";
+import { hasFeature } from "@/lib/features";
 import {
   createNotifications,
   resolveEscalationRecipients,
 } from "@/lib/notifications";
+
+/**
+ * Wrapper que solo manda el email si el plan de la org tiene
+ * `email-notifications`. Evita consumir Resend en orgs que no pagaron
+ * por la feature (cualquier llamada a `sendEmailSafe` directamente
+ * en este archivo se saltearía el gating).
+ */
+async function sendOrgEmailIfEnabled(
+  organizationId: string,
+  payload: EmailPayload
+) {
+  const enabled = await hasFeature(organizationId, "email-notifications");
+  if (!enabled) return;
+  await sendEmailSafe(payload);
+}
 
 // =========================================================================
 // Balance helper
@@ -128,7 +144,7 @@ export async function createTimeOffRequest(input: TimeOffRequestCreateInput) {
   const emails = recipients.map((r) => r.email).filter(Boolean);
 
   if (emails.length > 0) {
-    await sendEmailSafe({
+    await sendOrgEmailIfEnabled(ctx.organizationId, {
       to: emails,
       subject: `Nueva solicitud de ausencia — ${req.employee.firstName} ${req.employee.lastName}`,
       html: `
@@ -225,7 +241,7 @@ export async function approveTimeOffRequest(id: string, note?: string | null) {
     relatedTimeOffRequestId: req.id,
   });
 
-  await sendEmailSafe({
+  await sendOrgEmailIfEnabled(ctx.organizationId, {
     to: req.employee.email,
     subject: `Tu solicitud de ${req.type.name} fue aprobada`,
     html: `
@@ -272,7 +288,7 @@ export async function rejectTimeOffRequest(id: string, note: string) {
     relatedTimeOffRequestId: req.id,
   });
 
-  await sendEmailSafe({
+  await sendOrgEmailIfEnabled(ctx.organizationId, {
     to: req.employee.email,
     subject: `Tu solicitud de ${req.type.name} fue rechazada`,
     html: `
