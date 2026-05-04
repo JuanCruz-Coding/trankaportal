@@ -17,8 +17,6 @@ const FEATURE_LABEL: Record<FeatureKey, string> = {
   // Portal del empleado
   "self-service": "Portal del empleado",
   "self-service.documents": "Documentos propios",
-  "self-service.time-off": "Solicitar ausencias",
-  "self-service.attendance-view": "Ver asistencia propia",
   "self-service.payroll-signature": "Firma digital de recibos",
   // Time-off
   "time-off": "Ausencias y vacaciones",

@@ -84,6 +84,10 @@ const FEATURES: Array<{
   },
 
   // ── Portal del empleado (self-service) ─────────────────────────────────
+  // Nota: las acciones del empleado (pedir vacaciones, ver asistencia propia)
+  // se gatean implícitamente con el módulo correspondiente (`time-off`,
+  // `attendance`). No hace falta una sub-feature dedicada salvo que querramos
+  // un plan donde el módulo esté pero los empleados no puedan auto-servirse.
   {
     key: "self-service",
     name: "Portal del empleado",
@@ -94,18 +98,6 @@ const FEATURES: Array<{
     key: "self-service.documents",
     name: "Documentos propios",
     description: "El empleado descarga sus documentos desde el portal.",
-    plans: ["pro", "business"],
-  },
-  {
-    key: "self-service.time-off",
-    name: "Solicitar ausencias",
-    description: "El empleado pide vacaciones desde su perfil.",
-    plans: ["pro", "business"],
-  },
-  {
-    key: "self-service.attendance-view",
-    name: "Ver asistencia propia",
-    description: "El empleado consulta su historial de asistencia.",
     plans: ["pro", "business"],
   },
   {
@@ -257,6 +249,18 @@ const PLANS: Array<{ key: PlanKey; name: string; maxEmployees: number | null }> 
 ];
 
 async function main() {
+  // Limpiar features obsoletas: las que existen en DB pero ya no están en
+  // el array FEATURES. Cascade borra sus PlanFeatures asociadas.
+  // El array FEATURES es la fuente de verdad — si una key se quita acá,
+  // se va de la DB en el próximo seed.
+  const validKeys = FEATURES.map((f) => f.key);
+  const removed = await prisma.feature.deleteMany({
+    where: { key: { notIn: validKeys } },
+  });
+  if (removed.count > 0) {
+    console.log(`🧹 Removidas ${removed.count} feature(s) obsoleta(s).`);
+  }
+
   console.log("🌱 Seeding features...");
   for (const f of FEATURES) {
     await prisma.feature.upsert({

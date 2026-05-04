@@ -14,8 +14,6 @@ export type FeatureKey =
   // Portal del empleado
   | "self-service"
   | "self-service.documents"
-  | "self-service.time-off"
-  | "self-service.attendance-view"
   | "self-service.payroll-signature"
   // Time-off
   | "time-off"
