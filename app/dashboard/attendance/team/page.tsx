@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
   getOrgContext,
   requireRole,
 } from "@/lib/tenant";
+import { hasFeature } from "@/lib/features";
 
 type Props = { searchParams: Promise<{ m?: string }> };
 
@@ -91,6 +92,9 @@ export default async function TeamReportPage({ searchParams }: Props) {
 
   const prevUrl = `/dashboard/attendance/team?m=${monthKey(active.year, active.month - 1)}`;
   const nextUrl = `/dashboard/attendance/team?m=${monthKey(active.year, active.month + 1)}`;
+  const monthParam = monthKey(active.year, active.month);
+  const exportUrl = `/api/attendance/export?m=${monthParam}`;
+  const canExport = await hasFeature(ctx.organizationId, "attendance.export");
 
   return (
     <FeatureGate feature="attendance.team-view">
@@ -127,6 +131,15 @@ export default async function TeamReportPage({ searchParams }: Props) {
             >
               <ChevronRight className="h-4 w-4" />
             </Link>
+            {canExport ? (
+              <a
+                href={exportUrl}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <Download className="h-4 w-4" />
+                Exportar Excel
+              </a>
+            ) : null}
           </div>
         </header>
 
