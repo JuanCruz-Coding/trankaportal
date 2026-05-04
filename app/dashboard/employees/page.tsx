@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Lock, Network, Plus, Search } from "lucide-react";
+import { Download, Lock, Network, Plus, Search } from "lucide-react";
 import { FeatureGate } from "@/components/feature-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import {
   type OrgRole,
 } from "@/lib/tenant";
 import { getOrgPlan } from "@/lib/cached-queries";
+import { hasFeature } from "@/lib/features";
 import { CONTRACT_TYPE_LABEL } from "@/lib/validations/employee";
 
 type PageProps = {
@@ -133,30 +134,42 @@ async function EmployeesContent({
           where: { organizationId: orgId, isActive: true },
         });
 
-  const [employees, totalActive, totalFiltered, plan, orgWideActiveCount] =
-    await Promise.all([
-      prisma.employee.findMany({
-        where,
-        orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
-        // Sólo los campos que la tabla muestra. `include` traía todo (salary,
-        // address, dni, etc.) — overhead de transferencia y serialización.
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          isActive: true,
-          contractType: true,
-          department: { select: { name: true } },
-          position: { select: { title: true } },
-        },
-        ...(showAll ? {} : { take: DEFAULT_TAKE }),
-      }),
-      prisma.employee.count({ where: activeWhere }),
-      prisma.employee.count({ where }),
-      getOrgPlan(orgId),
-      orgWideActiveCountPromise,
-    ]);
+  const canExportPromise =
+    role === "manager"
+      ? Promise.resolve(false)
+      : hasFeature(orgId, "employees.csv-export");
+
+  const [
+    employees,
+    totalActive,
+    totalFiltered,
+    plan,
+    orgWideActiveCount,
+    canExport,
+  ] = await Promise.all([
+    prisma.employee.findMany({
+      where,
+      orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
+      // Sólo los campos que la tabla muestra. `include` traía todo (salary,
+      // address, dni, etc.) — overhead de transferencia y serialización.
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        isActive: true,
+        contractType: true,
+        department: { select: { name: true } },
+        position: { select: { title: true } },
+      },
+      ...(showAll ? {} : { take: DEFAULT_TAKE }),
+    }),
+    prisma.employee.count({ where: activeWhere }),
+    prisma.employee.count({ where }),
+    getOrgPlan(orgId),
+    orgWideActiveCountPromise,
+    canExportPromise,
+  ]);
 
   const cap = plan?.maxEmployees ?? null;
   const atCap = cap != null && orgWideActiveCount >= cap;
@@ -184,6 +197,15 @@ async function EmployeesContent({
             <Network className="h-4 w-4" />
             Organigrama
           </Link>
+          {canExport ? (
+            <a
+              href={`/api/employees/export?status=${status}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </a>
+          ) : null}
           {role !== "manager" ? (
             atCap ? (
               <Link
